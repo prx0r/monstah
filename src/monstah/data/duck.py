@@ -43,6 +43,8 @@ class DuckStore:
         self._con.execute("CREATE TABLE IF NOT EXISTS sim_results (scenario TEXT, outcome TEXT, probability DOUBLE)")
         self._con.execute("CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, scenario TEXT, run_index BIGINT, actor TEXT, action TEXT, detail TEXT, pre_state TEXT, post_state TEXT)")
         self._con.execute("CREATE TABLE IF NOT EXISTS episodes (channel TEXT, scenario TEXT, title TEXT, bundle TEXT, created_at TIMESTAMP DEFAULT now())")
+        self._con.execute("CREATE TABLE IF NOT EXISTS world_snapshots (world_id TEXT, world_version TEXT, digest TEXT, payload TEXT, created_at TIMESTAMP DEFAULT now(), UNIQUE(world_id, world_version))")
+        self._con.execute("CREATE TABLE IF NOT EXISTS scenarios (id TEXT PRIMARY KEY, name TEXT, template TEXT, mode TEXT, params TEXT)")
 
     # --- evidence chain persistence ------------------------------------
     def write_source(self, entity_id: str, src: Any) -> None:
@@ -112,6 +114,22 @@ class DuckStore:
         self._con.execute(
             "INSERT INTO episodes (channel, scenario, title, bundle) VALUES (?,?,?,?)",
             [channel, scenario, title, json.dumps(bundle)],
+        )
+
+    def write_world_snapshot(self, snap) -> None:
+        import json
+
+        self._con.execute(
+            "INSERT OR REPLACE INTO world_snapshots (world_id, world_version, digest, payload) VALUES (?,?,?,?)",
+            [snap.world_id, snap.world_version, snap.digest(), json.dumps(snap.evidence_closure())],
+        )
+
+    def write_scenario(self, man) -> None:
+        import json
+
+        self._con.execute(
+            "INSERT OR REPLACE INTO scenarios (id, name, template, mode, params) VALUES (?,?,?,?,?)",
+            [man.scenario_id, man.scenario_id, "scenario", man.mode, json.dumps({"digest": man.digest()})],
         )
 
     # --- queries --------------------------------------------------------

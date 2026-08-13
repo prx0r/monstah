@@ -99,14 +99,22 @@ offline adapters + a durable-store persistence check. Run with
 `docs/MVP.md` commit sequence 01–36 lists the exact build order.
 
 ## MVP guide progress (docs/MVP.md)
-- **Commit 01 — WorldSnapshot + stable digest: DONE.** `reconstruction/world.py`
-  aggregates a world's versioned reconstructions + evidence closure into an immutable
-  WorldSnapshot; `digest()` is deterministic (same evidence → same hash, version/assertion
-  change → hash changes). Wired into `Channel.snapshot()` + `monstah snapshot <channel>`.
-  Hierarchy now: Sources → Claims → Assertions → Reconstruction → **WorldSnapshot**.
-- Next: commit 02 (reconstruction versioning/lifecycle), 03 (ReferencePack diversity).
+- **Commit 01 — WorldSnapshot + stable digest: DONE.** `reconstruction/world.py`.
+- **Commits 02–11: DONE.**
+  - 02 reconstruction versioning/lifecycle (`reconstruction/versioning.py`, `taxon.py`,
+    `environment.py`): DRAFT→REVIEWED→APPROVED; **LTX only gets APPROVED**; registry auto-supersedes.
+  - 03 ReferencePack constrained portfolio selection (`assets/reference_pack.py`): role+view
+    diversity, not top-N.
+  - 04+08 VisualReconstructionSpec + EnvironmentVisualSpec (`assets/visual_spec.py`) with
+    certainty tiers (CONSTRAINED/INFERRED/OPEN/SPECULATIVE).
+  - 05-06 provider-neutral `ReconstructionImageBackend` + offline `LocalSpecBackend`.
+  - 07 ReconstructionVisualQA (`assets/qa.py`): P0/P1/P2 classification.
+  - 09 immutable CanonicalAsset registry + content hashes (`assets/canonical.py`).
+  - 10 StoreManager persistence (DuckDB always + optional Postgres + R2) wired into publish.
+  - 11 immutable ScenarioManifest + digest (`scenarios/manifest.py`).
+- Next: 12+ (SimulationModel classes, claim-aware StoryBeat, executable EpisodeSpec,
+  ShotSpec v2, ControlPlanner, QA layers, Retake, EpisodeAssembler, `monstah produce`).
 
-## Next
-- Wire `PostgresStore` canonical persistence + `DuckStore` Parquet export into `publish`.
-- Implement MVP commits 02+ per `docs/MVP.md` (versioning, ReferencePacks, produce command).
-- Alien Worlds (NASA TAP adapter) per Phase 3 of `CHANNELS.md`.
+## Tests (44, offline, fast)
+`test_truth` · `test_montecarlo` · `test_historical` · `test_channels` · `test_media` ·
+`test_assets` · `test_evidence` · `test_world` · `test_mvp`.

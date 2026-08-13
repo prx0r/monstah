@@ -83,6 +83,7 @@ class RendererProfile:
 class Settings:
     r2: R2Config = field(default_factory=R2Config)
     pbdb_cache: str = field(default_factory=lambda: _env("PBDB_CACHE", "~/.cache/monstah"))
+    postgres_dsn: str = field(default_factory=lambda: _env("POSTGRES_DSN", ""))
     renderer: RendererProfile = field(
         default_factory=lambda: RendererProfile.named(_env("RENDERER_PROFILE", "final"))
     )

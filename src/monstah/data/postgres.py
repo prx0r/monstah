@@ -113,5 +113,43 @@ class PostgresStore:
             )
         self._conn.commit()
 
+    # -- MVP canonical tables ------------------------------------------
+    def write_world_snapshot(self, snap) -> None:
+        with self._conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO world_snapshots (world_id, world_version, digest, payload) VALUES (%s,%s,%s,%s) "
+                "ON CONFLICT (world_id, world_version) DO UPDATE SET digest=EXCLUDED.digest, payload=EXCLUDED.payload",
+                (snap.world_id, snap.world_version, snap.digest(), str(snap.evidence_closure())),
+            )
+        self._conn.commit()
+
+    def write_scenario(self, man) -> None:
+        with self._conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO scenarios (id, name, template, mode, params) VALUES (%s,%s,%s,%s,%s) "
+                "ON CONFLICT (id) DO NOTHING",
+                (man.scenario_id, man.scenario_id, "scenario", man.mode, {"digest": man.digest()}),
+            )
+        self._conn.commit()
+
+    def write_canonical_event(self, e: dict) -> None:
+        with self._conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO canonical_events (id, scenario, run_index, actor, action, detail) "
+                "VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO NOTHING",
+                (e.get("event_id"), e.get("scenario"), e.get("run_index"), e.get("actor"),
+                 e.get("action"), e.get("detail")),
+            )
+        self._conn.commit()
+
+    def write_episode(self, ep: dict) -> None:
+        with self._conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO episodes (id, channel, title, metadata) VALUES (%s,%s,%s,%s) "
+                "ON CONFLICT (id) DO UPDATE SET metadata=EXCLUDED.metadata",
+                (ep.get("id"), ep.get("channel"), ep.get("title"), ep.get("metadata")),
+            )
+        self._conn.commit()
+
     def close(self) -> None:
         self._conn.close()

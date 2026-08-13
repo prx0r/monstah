@@ -176,6 +176,7 @@ class Channel:
         self.n_runs = n_runs
         self._envs = {e.id: e for e in adapter.environments()}
         self._analytics = None  # lazily created DuckStore
+        self._store_manager = None
 
     def _get_analytics(self):
         from monstah.data.duck import DuckStore
@@ -183,6 +184,29 @@ class Channel:
         if self._analytics is None:
             self._analytics = DuckStore()
         return self._analytics
+
+    def _get_stores(self):
+        from monstah.production.persistence import StoreManager
+
+        if self._store_manager is None:
+            self._store_manager = StoreManager(duck=self._get_analytics())
+        return self._store_manager
+
+    def scenario_manifest(self, candidate: Candidate, taxa_by_ref: dict[str, Taxon], overlap) -> Any:
+        """Pin an immutable ScenarioManifest for a candidate."""
+        from monstah.scenarios.manifest import build_scenario_manifest
+
+        snap = self.snapshot(world_id=candidate.environment.key if candidate.environment else "world")
+        versions = {t.ref.key: self.manifest.versions.get(t.ref.key, "R1") for t in taxa_by_ref.values()}
+        validity = "VALID" if overlap.valid_historical else ("COUNTERFACTUAL" if candidate.mode != "historical" else "INVALID")
+        return build_scenario_manifest(
+            scenario_id=f"{candidate.template}:{candidate.entities[0].key}-{candidate.entities[1].key}",
+            world=snap,
+            participant_reconstructions=versions,
+            mode=candidate.mode,
+            validity=validity,
+            model_version="d20-2.5",
+        )
 
     # -- evidence step: build the graph -------------------------------
     def snapshot(self, world_id: str = "world") -> Any:
@@ -240,6 +264,10 @@ class Channel:
         self.render(out)
         self.discovery.commit(candidate.template, candidate.entities)
         self._record(out)
+        # persist immutable world snapshot + scenario manifest
+        stores = self._get_stores()
+        stores.write_world_snapshot(self.snapshot())
+        stores.write_scenario(self.scenario_manifest(candidate, taxa_by_ref, out.overlap))
         return out
 
     def _record(self, output: PipelineOutput) -> None:

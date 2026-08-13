@@ -253,3 +253,25 @@ CREATE TABLE IF NOT EXISTS episodes (
     published_at TIMESTAMPTZ,
     metadata   JSONB NOT NULL DEFAULT '{}'::jsonb
 );
+
+-- MVP canonical state (Phase 10) -------------------------------------------
+CREATE TABLE IF NOT EXISTS world_snapshots (
+    world_id       TEXT,
+    world_version  TEXT,
+    digest         TEXT NOT NULL,
+    payload        JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at     TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (world_id, world_version)
+);
+
+CREATE TABLE IF NOT EXISTS canonical_events (
+    id          TEXT PRIMARY KEY,
+    scenario    TEXT,
+    run_index   BIGINT,
+    actor       TEXT,
+    action      TEXT,
+    detail      TEXT,
+    pre_state   JSONB,
+    post_state  JSONB,
+    created_at  TIMESTAMPTZ DEFAULT now()
+);

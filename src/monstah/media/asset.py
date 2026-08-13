@@ -97,6 +97,7 @@ class AssetCandidate(BaseModel):
 
     role: AssetRole = AssetRole.OBSERVATIONAL_REFERENCE
     epistemic_status: EpistemicStatus = EpistemicStatus.OBSERVED_PHOTOGRAPH
+    view: str = ""  # lateral | dorsal | front | three_quarter | detail | habitat | ...
 
     # ranking inputs (0..1 each), defaulted to neutral
     image_quality: float = 0.5
