@@ -1,0 +1,76 @@
+# Progress
+
+Status: **evidence-constrained world engine working end-to-end, 5 live channels,
+25 tests, organized docs.** All work since the LTX production pack import.
+
+## What is built (all verified working)
+
+### Engine core
+- **Type firewall** (`core/truth.py`) — EvidenceTrait / ReconstructionParameter /
+  SimulationParameter / GameProxyParameter / NarrativeProjection; values layer-tagged.
+- **Shared substrate** (`core/models.py`) — ENTITY / ENVIRONMENT / RELATION /
+  SCENARIO / SIMULATION / EVENT / STORY / SHOT / ASSET.
+- **Identifier crosswalk** (`core/identity.py`) — pbdb/gbif/ott/eol/worms/wikidata.
+- **Evidence chain** (`evidence/`) — Source / Claim / Assertion / Reconstruction;
+  `builder` turns ingested facts into versioned reconstructions; game-proxy held apart.
+
+### Data ingest (`ingest/`)
+PBDB, Macrostrat, GBIF, OBIS, GloBI, OpenTree, OpenAlex, Open5e — **all verified live,
+no auth** (EOL now needs a key). Open5e = 3,207-statchlock game-proxy corpus.
+
+### Simulation
+- **d20 battle engine** (`simulations/d20.py`) — attack-vs-AC, damage dice, crits;
+  `run_duel_events` emits the real canonical event log.
+- **Replayable Monte Carlo** (`simulations/montecarlo.py`) — `(master_seed, run_index)`,
+  selected runs replay exactly.
+- **esper ECS** alternative system (`simulations/ecs_battle.py`).
+
+### Discovery / narrative
+- Scenario discovery + **strict historical overlap** (temporal+geo+env, real regions).
+- **ContentHistory/novelty** — no placeholder; repetition penalized.
+- Significance detector + story compiler with provenance-bearing narrative claims.
+
+### Media
+- **LTX ShotSpec** (`media/ltx.py`) — pydantic models matching the vendored schema;
+  `canonicality` comes from the truth layer, never invented by the renderer.
+- **Canonical asset system** (`media/asset.py`, `media/providers.py`) — provider-agnostic
+  image discovery (GBIF, iNaturalist, Wikimedia; BHL key-gated), license policy
+  (ALLOW/REVIEW/REJECT), evidence-fit ranking, versioned reconstruction assets.
+- **R2 storage** (`media/storage.py`) — `R2Store` + `AssetStore` (source/entities/environments).
+
+### Stores
+- **DuckDB analytical** (`data/duck.py`) — occurrences, sim results.
+- **Postgres canonical** (`data/postgres.py`) — maps `sql/postgres.sql` (incl. asset tables).
+
+### Channels (live, 5)
+`prehistoric` (battle) · `ancient-oceans` (battle) · `deep-blue` (OBIS battle) ·
+`living-planet` (GloBI non-combat) · `tree-of-life` (OpenTree non-combat).
+
+### Offline full-stack simulation
+`monstah simulate <channel>` runs ingest→evidence→discovery→validity→battle→Monte Carlo→
+significance→story→shots→LTX bundle, writes episode JSON, **no LTX/network**.
+
+## Key fixes applied (peer review, commit 61d9ce1)
+Historical mode wired; geographic validity no longer bypassed; Open5e stats kept out of
+the evidence layer; Deep Blue genuinely OBIS-driven; MC runs replayable; real event log
+(no fabricated events); non-combat channel path; PALEO/domain leakage removed. See
+`REVIEW_NOTES.md`.
+
+## Trending-data niche analysis (YouTube GB/CA/IN, n≈117k)
+- **Blue ocean:** Prehistoric/Dinosaurs (9.4M avg, low supply) and Ancient Oceans
+  (10.5M avg, lowest supply) → top breakout lanes.
+- Matchups (1.26M avg) = Shorts discovery engine. Space (3.9M) = strong later.
+- Weak: Evolution (208k), generic wildlife (633k). See `CHANNELS.md`.
+
+## Tests (25, offline, fast)
+`test_truth` · `test_montecarlo` · `test_historical` · `test_channels` ·
+`test_media` · `test_assets`. Run with `.venv/bin/python -m pytest tests/`.
+
+## Docs
+`docs/INDEX.md` is the map. See README at repo root for quickstart + CLI.
+
+## Next
+- Wire `PostgresStore`/`DuckStore` into channel `publish` (currently R2).
+- Add `ancient-oceans` + `deep-blue` OBIS offline fixtures for channel tests.
+- Alien Worlds (NASA TAP adapter) per Phase 3 of `CHANNELS.md`.
+- Vision QA → Retake loop against ShotSpec (LTX_USAGE.md).

@@ -9,7 +9,9 @@ what is true.
 
 | Doc | What it is |
 |---|---|
-| [`thesis.md`](thesis.md) | The original Evidence World Engine thesis (canonical guide, 2378 lines) |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | One-page system architecture + truth rules + module map |
+| [`PROGRESS.md`](PROGRESS.md) | **Status of everything built**, fixes, data, next steps |
+| [`THESIS.md`](THESIS.md) | The original Evidence World Engine thesis (canonical guide, 2378 lines) |
 | [`DATA.md`](DATA.md) | Data availability per API, mass-import strategy, graph schema |
 | [`CHANNELS.md`](CHANNELS.md) | **10-channel spec** with trending-data justification + strength scores |
 | [`LTX_USAGE.md`](LTX_USAGE.md) | How we use LTX (I2V-first, ShotSpec as execution plan, Retake, Reframe) |
