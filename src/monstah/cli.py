@@ -76,6 +76,23 @@ def _cmd_matchup(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_channel(args: argparse.Namespace) -> int:
+    from .channels import get_channel, list_channels
+
+    ch = get_channel(args.channel, n_runs=args.runs)
+    print(f"## Channel: {ch.theme} — {ch.manifest.title}\n")
+    taxa = ch.ingest(limit=args.taxa)
+    by_ref = {t.ref.key: t for t in taxa}
+    print(f"ingested {len(taxa)} taxa; environments: {len(ch.adapter.environments())}")
+    cands = ch.discover(taxa, top_n=args.top_n)
+    print(f"discovered {len(cands)} candidates\n")
+    for cand in cands:
+        out = ch.produce(cand, by_ref)
+        print(f"  [{out.significance.score:.2f}] {out.story.title}")
+        print(f"      outcomes: {out.mc.outcomes}  valid_historical={out.overlap.valid_historical}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="monstah", description="world model engine")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -83,6 +100,13 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("scenarios", help="run scenario discovery on a corpus")
     s.add_argument("--top-n", type=int, default=10, dest="top_n")
     s.set_defaults(func=_cmd_scenarios)
+
+    c = sub.add_parser("channel", help="run a themed channel end-to-end")
+    c.add_argument("channel", help=f"one of: {', '.join(list_channels())}")
+    c.add_argument("--taxa", type=int, default=40)
+    c.add_argument("--top-n", type=int, default=5, dest="top_n")
+    c.add_argument("--runs", type=int, default=1000, dest="runs")
+    c.set_defaults(func=_cmd_channel)
 
     i = sub.add_parser("ingest", help="ingest taxa from PBDB + Macrostrat")
     i.add_argument("taxa", nargs="*")
@@ -104,6 +128,12 @@ def main(argv: list[str] | None = None) -> int:
 
     args = p.parse_args(argv)
     return args.func(args)
+
+
+def list_channels() -> list[str]:
+    from .channels import list_channels as _lc
+
+    return _lc()
 
 
 if __name__ == "__main__":

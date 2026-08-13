@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..core.identity import MACROSTRAT, PBDB, Crosswalk
-from ..core.models import Entity, Environment, Reference
-from ..discovery.scenario_generator import Taxon
-from ..evidence.models import Reconstruction, Source, Uncertainty
-from ..ingest.macrostrat import MacrostratClient
-from ..ingest.pbdb import PbdbClient
+from ...core.identity import MACROSTRAT, PBDB, Crosswalk
+from ...core.models import Entity, Environment, Reference
+from ...discovery.scenario_generator import Taxon
+from ...evidence.models import Reconstruction, Source, Uncertainty
+from ...ingest.macrostrat import MacrostratClient
+from ...ingest.pbdb import PbdbClient
 
 
 class PaleoLoader:

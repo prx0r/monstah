@@ -74,6 +74,9 @@ class ScenarioDiscovery:
         self.taxa = list(taxa)
 
     def temporal_overlap(self, a: Taxon, b: Taxon) -> float:
+        # living taxa (both at the present) always coexist in time
+        if a.max_ma <= 0 and b.max_ma <= 0:
+            return 1.0
         lo = max(a.min_ma, b.min_ma)
         hi = min(a.max_ma, b.max_ma)
         return max(0.0, min(1.0, (hi - lo) / 20.0))

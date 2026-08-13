@@ -33,7 +33,9 @@ class OverlapResult:
 
 
 def temporal_overlap(a_min: float, a_max: float, b_min: float, b_max: float) -> float:
-    """Width of shared time interval (Ma); 0 if disjoint."""
+    """Width of shared time interval (Ma); 0 if disjoint. Living taxa overlap."""
+    if a_max <= 0 and b_max <= 0:
+        return 1.0
     lo = max(a_min, b_min)
     hi = min(a_max, b_max)
     return max(0.0, hi - lo)
