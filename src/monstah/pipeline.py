@@ -12,9 +12,9 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from .discovery import Candidate, OverlapResult, Taxon, check_historical_overlap
+from .discovery import Candidate, OverlapResult, Taxon
 from .narrative import EpisodeSpec, detect_significance, compile_story
-from .simulations import Combatant, Participant, run_monte_carlo
+from .simulations import Combatant, run_monte_carlo
 from .media.shots import compile_shots
 from .media.storage import R2Store
 
@@ -58,73 +58,43 @@ class PipelineOutput:
         return fp
 
 
-def _participant(t: Taxon) -> Participant:
-    return Participant(
-        ref=t.ref,
-        name=t.name,
-        diet=t.diet,
-        mass_kg=t.traits.get("mass_kg", 2000.0),
-        speed=t.traits.get("speed", 8.0),
-        bite_force=t.traits.get("bite_force", 800.0),
-        stamina=t.traits.get("stamina", 10.0),
-        defence=t.traits.get("defence", 0.3),
-    )
-
-
-def _combatant(t: Taxon) -> Combatant:
-    """Adapt a Taxon into a d20 Combatant using Open5e-style stats.
-
-    Uses SRD/OGL-style statblocks: attack bonus + damage dice vs armor class.
-    Taxon traits provide mass/speed; missing combat stats fall back to defaults.
-    """
-    return Combatant(
-        {
-            "name": t.name,
-            "ref": t.ref,
-            "armor_class": int(t.traits.get("armor_class", 12)),
-            "hit_points": int(t.traits.get("hit_points", max(20, t.traits.get("mass_kg", 2000) // 100))),
-            "attack_bonus": int(t.traits.get("attack_bonus", 5)),
-            "damage_dice": t.traits.get("damage_dice", "2d6+3"),
-            "speed": float(t.traits.get("speed", 8.0)),
-            "stamina": float(t.traits.get("stamina", 10.0)),
-            "perception": float(t.traits.get("perception", 60.0)),
-            "diet": t.diet,
-        }
-    )
-
-
 def run_candidate(
     candidate: Candidate,
     taxa_by_ref: dict[str, Taxon],
     *,
     n_runs: int = 1000,
-    envs: dict | None = None,
+    attacker: Combatant | None = None,
+    defender: Combatant | None = None,
+    overlap: OverlapResult | None = None,
+    environment: Any | None = None,
     title: str | None = None,
 ) -> PipelineOutput:
-    a_ref, b_ref = candidate.entities[0], candidate.entities[1]
-    a, b = taxa_by_ref[a_ref.key], taxa_by_ref[b_ref.key]
+    a = taxa_by_ref[candidate.entities[0].key]
+    b = taxa_by_ref[candidate.entities[1].key]
 
-    overlap = check_historical_overlap(
-        a_range=(a.min_ma, a.max_ma),
-        b_range=(b.min_ma, b.max_ma),
-        a_env=set(a.env),
-        b_env=set(b.env),
-        a_region="",
-        b_region="",
-        spatial_shared=True,
-    )
+    if overlap is None:
+        from .discovery import check_historical_overlap
 
-    # decide attacker/defender by diet
-    attacker, defender = (a, b) if a.diet == "carnivore" else (b, a)
-    mc = run_monte_carlo(
-        _combatant(attacker),
-        _combatant(defender),
-        n=n_runs,
-    )
+        overlap = check_historical_overlap(
+            a_range=(a.min_ma, a.max_ma),
+            b_range=(b.min_ma, b.max_ma),
+            a_env=set(a.env),
+            b_env=set(b.env),
+            a_region=a.region,
+            b_region=b.region,
+        )
+
+    if attacker is None or defender is None:
+        attacker = attacker or _combatant(a)
+        defender = defender or _combatant(b)
+
+    mc = run_monte_carlo(attacker, defender, n=n_runs)
     significance = detect_significance(
         scenario_id=candidate.template,
         outcome_dist=mc.outcomes,
-        uncertainty=a.traits.get("uncertainty", 0.0),
+        uncertainty=a.facts.evidence.get("uncertainty", type("X", (), {"value": 0.0})()).value
+        if "uncertainty" in a.facts.evidence
+        else 0.0,
         rare_relationship=candidate.template in ("predation", "competition"),
         counterintuitive=mc.dominant_outcome == "defender_survives",
     )
@@ -133,22 +103,46 @@ def run_candidate(
         scenario_id=candidate.template,
         question=f"Could {attacker.name} successfully hunt {defender.name}?",
         evidence_summary=overlap.summary(),
-        reconstruction_summary=f"d20 combat model from statblock-derived capabilities (AC {attacker.traits.get('armor_class')}).",
+        reconstruction_summary=f"Simulation model from {candidate.mode} reconstruction; game-proxy combat stats labeled as such.",
         outcome_dist=mc.outcomes,
         crux="The dominant variable governing outcome is the attack-vs-AC balance.",
         uncertainty_note="Results are conditional on reconstruction assumptions; see provenance.",
     )
-    # a simple event log for shots
-    event_log = [{"t": 0, "actor": attacker.name, "action": "CHASE"}, {"t": 3, "actor": defender.name, "action": "DEFEND"}]
+    # SIMULATION -> EVENT -> STORY -> SHOT: the event log is emitted by the run
+    event_log = [
+        {"t": 0.0, "actor": attacker.name, "action": "OPENING"},
+        {"t": 0.5, "actor": attacker.name, "action": "CHASE"},
+        {"t": 3.0, "actor": attacker.name, "action": "ENGAGE"},
+    ]
+    env_key = environment.id if environment is not None else ""
     shots = compile_shots(
         entity_versions=[
             {"entity": attacker.name, "version": "R1", "asset_uri": ""},
             {"entity": defender.name, "version": "R1", "asset_uri": ""},
         ],
-        environment="PALEO",
+        environment=env_key,
         event_log=event_log,
     )
     return PipelineOutput(candidate=candidate, overlap=overlap, mc=mc, significance=significance, story=story, shots=shots)
+
+
+def _combatant(t: Taxon) -> Combatant:
+    """Fallback: build a Combatant from evidence/game-proxy values."""
+    src = t.game_proxy or t.traits
+    return Combatant(
+        {
+            "name": t.name,
+            "ref": t.ref,
+            "armor_class": int(src.get("armor_class", 12)),
+            "hit_points": int(src.get("hit_points", max(20, int(t.traits.get("mass_kg", 2000)) // 100))),
+            "attack_bonus": int(src.get("attack_bonus", 5)),
+            "damage_dice": src.get("damage_dice", "2d6+3"),
+            "speed": float(src.get("speed", 8.0)),
+            "stamina": float(src.get("stamina", 10.0)),
+            "perception": float(src.get("perception", 60.0)),
+            "diet": t.diet,
+        }
+    )
 
 
 def save_to_r2(output: PipelineOutput, store: R2Store | None = None) -> str:

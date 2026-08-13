@@ -10,9 +10,10 @@ plus novelty / recognizability / scientific & visual interest.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Iterable
+from typing import Any, Iterable
 
 from ..core.models import Reference
+from ..core.truth import Layer, TaxonFacts, TypedValue
 
 SCENARIO_TYPES = (
     "predation",
@@ -55,7 +56,30 @@ class Taxon:
     max_ma: float
     env: set[str]
     diet: str = ""
-    traits: dict = field(default_factory=dict)
+    region: str = ""  # geographic region, from evidence (e.g. PBDB continent)
+    facts: TaxonFacts = field(default_factory=TaxonFacts)
+
+    @property
+    def traits(self) -> dict[str, Any]:
+        """SCIENTIFIC-only flat view (evidence + reconstruction + simulation).
+
+        Game-proxy combat stats are deliberately excluded — they live in
+        `facts.game_proxy` and are only consumed by the battle engine.
+        """
+        return self.facts.scientific_flat()
+
+    @property
+    def game_proxy(self) -> dict[str, Any]:
+        return self.facts.game_proxy_flat()
+
+    def set_evidence(self, key: str, value: Any, **kw: Any) -> None:
+        self.facts.add(Layer.EVIDENCE, key, TypedValue(Layer.EVIDENCE, value, **kw))
+
+    def set_reconstruction(self, key: str, value: Any, **kw: Any) -> None:
+        self.facts.add(Layer.RECONSTRUCTION, key, TypedValue(Layer.RECONSTRUCTION, value, **kw))
+
+    def set_game_proxy(self, key: str, value: Any, **kw: Any) -> None:
+        self.facts.add(Layer.GAME_PROXY, key, TypedValue(Layer.GAME_PROXY, value, **kw))
 
 
 class ScenarioDiscovery:
@@ -82,12 +106,17 @@ class ScenarioDiscovery:
         return max(0.0, min(1.0, (hi - lo) / 20.0))
 
     def spatial_overlap(self, a: Taxon, b: Taxon) -> float:
-        shared = a.env & b.env
-        if not shared:
-            return 0.0
-        return len(shared) / max(1, min(len(a.env), len(b.env)))
+        """GEOGRAPHIC overlap from actual regions (not environment labels)."""
+        if not a.region or not b.region:
+            return 1.0  # unknown region: don't exclude on geography
+        if a.region == b.region:
+            return 1.0
+        if "global" in (a.region, b.region):
+            return 1.0
+        return 0.0
 
     def environment_match(self, a: Taxon, b: Taxon) -> float:
+        # ecological compatibility, kept separate from geography
         return 1.0 if (a.env & b.env) else 0.0
 
     def interaction_strength(self, a: Taxon, b: Taxon) -> float:

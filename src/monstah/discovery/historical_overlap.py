@@ -47,19 +47,31 @@ def check_historical_overlap(
     b_range: tuple[float, float],
     a_env: set[str],
     b_env: set[str],
-    a_region: str,
-    b_region: str,
-    spatial_shared: bool | None = None,
+    a_region: str = "",
+    b_region: str = "",
 ) -> OverlapResult:
     res = OverlapResult()
     res.temporal_window = temporal_overlap(*a_range, *b_range)
     res.temporal = res.temporal_window > 0
-    res.spatial = spatial_shared if spatial_shared is not None else (a_region == b_region or a_region == "global" or b_region == "global")
+    res.spatial = _spatial_overlap(a_region, b_region)
     res.environment = bool(a_env & b_env)
     if not res.temporal:
         res.reasons.append(f"no shared time interval (window={res.temporal_window:.2f} Ma)")
     if not res.spatial:
-        res.reasons.append("no geographic overlap")
+        res.reasons.append(f"no geographic overlap ({a_region!r} vs {b_region!r})")
     if not res.environment:
         res.reasons.append("incompatible environments")
     return res
+
+
+def _spatial_overlap(a_region: str, b_region: str) -> bool:
+    """Strict geographic overlap from evidence-sourced regions.
+
+    Unknown regions do NOT grant overlap; they are reported as a validity gap
+    rather than silently passed (no bypassing historical validity).
+    """
+    if not a_region or not b_region:
+        return False
+    if "global" in (a_region, b_region):
+        return True
+    return a_region == b_region
