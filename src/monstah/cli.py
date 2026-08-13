@@ -175,6 +175,32 @@ def _cmd_snapshot(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_produce(args: argparse.Namespace) -> int:
+    from .production.produce import produce_episode
+
+    res = produce_episode(
+        args.channel,
+        world_id=args.world,
+        out_dir=args.out,
+        n_runs=args.runs,
+        resume_run=args.resume,
+    )
+    print(f"run: {res.run.run_id}")
+    print(f"stages: {list(res.run.digests.keys())}")
+    print(f"shots rendered: {len(res.render_jobs)} | QA: {len(res.qa)}")
+    print(f"episode manifest digest: {res.episode_manifest.digest()}")
+    print(f"assembly: {res.assembly['master']} master + {res.assembly['derivatives']} derivatives")
+    return 0
+
+
+def _cmd_resume(args: argparse.Namespace) -> int:
+    from .production.produce import produce_episode
+
+    res = produce_episode(args.channel, resume_run=args.run)
+    print(f"resumed run {res.run.run_id} to {res.run.stage.value}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="monstah", description="world model engine")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -204,6 +230,19 @@ def main(argv: list[str] | None = None) -> int:
     snap.add_argument("--taxa", type=int, default=40)
     snap.add_argument("--world", default="hell-creek")
     snap.set_defaults(func=_cmd_snapshot)
+
+    prod = sub.add_parser("produce", help="one-command evidence-to-media vertical slice")
+    prod.add_argument("channel", help=f"one of: {', '.join(list_channels())}")
+    prod.add_argument("--world", default="hell-creek")
+    prod.add_argument("--out", default="out/produce")
+    prod.add_argument("--runs", type=int, default=500, dest="runs")
+    prod.add_argument("--resume", default=None, help="resume a run id")
+    prod.set_defaults(func=_cmd_produce)
+
+    resume = sub.add_parser("resume", help="resume a production run from its manifest")
+    resume.add_argument("channel", help=f"one of: {', '.join(list_channels())}")
+    resume.add_argument("run", help="run id (path to RUN.json)")
+    resume.set_defaults(func=_cmd_resume)
 
     i = sub.add_parser("ingest", help="ingest taxa from PBDB + Macrostrat")
     i.add_argument("taxa", nargs="*")

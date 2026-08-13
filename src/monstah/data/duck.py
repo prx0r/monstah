@@ -43,8 +43,12 @@ class DuckStore:
         self._con.execute("CREATE TABLE IF NOT EXISTS sim_results (scenario TEXT, outcome TEXT, probability DOUBLE)")
         self._con.execute("CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, scenario TEXT, run_index BIGINT, actor TEXT, action TEXT, detail TEXT, pre_state TEXT, post_state TEXT)")
         self._con.execute("CREATE TABLE IF NOT EXISTS episodes (channel TEXT, scenario TEXT, title TEXT, bundle TEXT, created_at TIMESTAMP DEFAULT now())")
-        self._con.execute("CREATE TABLE IF NOT EXISTS world_snapshots (world_id TEXT, world_version TEXT, digest TEXT, payload TEXT, created_at TIMESTAMP DEFAULT now(), UNIQUE(world_id, world_version))")
+        self._con.execute("CREATE TABLE IF NOT EXISTS world_snapshots (world_id TEXT, world_version TEXT, digest TEXT, payload TEXT, created_at TIMESTAMP DEFAULT now())")
         self._con.execute("CREATE TABLE IF NOT EXISTS scenarios (id TEXT PRIMARY KEY, name TEXT, template TEXT, mode TEXT, params TEXT)")
+        # single unique constraint for world_snapshots (works fresh + pre-existing)
+        self._con.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_world ON world_snapshots (world_id, world_version)")
+        # drop a stale duplicate index from an earlier schema version
+        self._con.execute("DROP INDEX IF EXISTS ux_scenario")
 
     # --- evidence chain persistence ------------------------------------
     def write_source(self, entity_id: str, src: Any) -> None:

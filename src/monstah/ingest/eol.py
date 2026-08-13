@@ -1,4 +1,8 @@
-"""EOL TraitBank client: structured organism traits for the capability layer."""
+"""EOL TraitBank client — DEGRADED/LEGACY.
+
+EOL now returns HTTP 403 without an API key. Exported but not usable without a key;
+traits route via OpenAlex/OpenTree instead. See docs/AUDIT.md.
+"""
 
 from __future__ import annotations
 

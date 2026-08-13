@@ -1,4 +1,9 @@
-"""esper-based battle simulation.
+"""ALTERNATIVE battle engine (esper ECS) — NOT the active pipeline engine.
+
+LEGACY/ALTERNATIVE: the active pipeline uses the d20 engine (`d20.py`) + replayable
+Monte Carlo (`montecarlo.py`). This esper ECS system is kept as an alternative for
+multi-party/behavioral battles but is NOT wired into `produce` or the channels.
+See docs/AUDIT.md.
 
 Uses esper (MIT, pure-Python ECS) as the ENTITY backbone. Entities are plain
 int IDs; combat stats are components (pure data); systems hold all logic and

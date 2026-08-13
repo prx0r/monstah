@@ -95,7 +95,10 @@ class R2Store:
 
 
 class AssetStore(R2Store):
-    """R2 layout for the canonical asset library:
+    """R2 layout helper for the canonical asset library — NOT currently wired.
+
+    LEGACY/UNUSED: not called by any active path (see docs/AUDIT.md). `R2Store`
+    is the live store. Kept as the canonical layout for when asset ingestion runs.
 
         assets/source/<provider>/...         (downloaded licensed source images)
         assets/entities/<entity-id>/references/
