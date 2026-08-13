@@ -68,6 +68,8 @@ def run_candidate(
     overlap: OverlapResult | None = None,
     environment: Any | None = None,
     title: str | None = None,
+    evidence: dict[str, list] | None = None,
+    versions: dict[str, str] | None = None,
 ) -> PipelineOutput:
     a = taxa_by_ref[candidate.entities[0].key]
     b = taxa_by_ref[candidate.entities[1].key]
@@ -107,17 +109,18 @@ def run_candidate(
         outcome_dist=mc.outcomes,
         crux="The dominant variable governing outcome is the attack-vs-AC balance.",
         uncertainty_note="Results are conditional on reconstruction assumptions; see provenance.",
-        narrative_claims=_evidence_claims(a, b, attacker, defender),
+        narrative_claims=_evidence_claims(a, b, evidence or {}),
     )
     # SIMULATION -> EVENT -> STORY -> SHOT: emit the canonical event log of the
     # representative selected run (real events, never fabricated)
     rep_idx = mc.selected.get("representative", 0)
-    event_log = _run_events(attacker, defender, mc, rep_idx)
+    event_log = _run_events(attacker, defender, mc, rep_idx, candidate.template)
+    versions = versions or {}
     env_key = environment.id if environment is not None else ""
     shots = compile_shots(
         entity_versions=[
-            {"entity": attacker.name, "version": "R1", "asset_uri": ""},
-            {"entity": defender.name, "version": "R1", "asset_uri": ""},
+            {"entity": attacker.name, "version": versions.get(a.ref.key, "R1"), "asset_uri": ""},
+            {"entity": defender.name, "version": versions.get(b.ref.key, "R1"), "asset_uri": ""},
         ],
         environment=env_key,
         event_log=event_log,
@@ -125,27 +128,34 @@ def run_candidate(
     return PipelineOutput(candidate=candidate, overlap=overlap, mc=mc, significance=significance, story=story, shots=shots)
 
 
-def _run_events(attacker, defender, mc, run_index: int) -> list[dict]:
+def _run_events(attacker, defender, mc, run_index: int, scenario_id: str = "scenario") -> list[dict]:
     """Emit the canonical event log of a specific simulation run."""
     from .simulations import run_duel_events, run_rng
 
-    return run_duel_events(attacker, defender, run_rng(mc.master_seed, run_index), n_rounds=mc.n_rounds)
+    return run_duel_events(
+        attacker, defender, run_rng(mc.master_seed, run_index),
+        n_rounds=mc.n_rounds, scenario_id=scenario_id, run_index=run_index,
+    )
 
 
-def _evidence_claims(a, b, attacker, defender) -> list:
-    """Build provenance-bearing narrative claims from each side's evidence."""
+def _evidence_claims(a, b, evidence: dict[str, list]) -> list:
+    """Build provenance-bearing narrative claims that RESOLVE to real Assertions.
+
+    Each claim references the actual persisted Assertion.id and its Source
+    reference — never fabricated template strings.
+    """
     from .narrative import NarrativeClaim
 
-    claims = []
-    for label, taxon in (("attacker", a), ("defender", b)):
-        for trait, tv in list(taxon.facts.evidence.items())[:2]:
+    claims: list[NarrativeClaim] = []
+    for taxon in (a, b):
+        for assertion in evidence.get(taxon.ref.key, []) or []:
             claims.append(
                 NarrativeClaim(
-                    text=f"{taxon.name} {trait} ≈ {tv.value}",
-                    claim_id=f"{taxon.ref.key}:{trait}",
-                    assertion_ids=[f"{taxon.ref.key}:{trait}"],
-                    source_ids=[taxon.ref.namespace],
-                    status=tv.status,
+                    text=f"{taxon.name} {assertion.trait} ≈ {assertion.value}",
+                    claim_id=f"{taxon.ref.key}:{assertion.trait}",
+                    assertion_ids=[assertion.id],
+                    source_ids=[assertion.provenance.source.uri],
+                    status=assertion.status.value if hasattr(assertion.status, "value") else str(assertion.status),
                 )
             )
     return claims

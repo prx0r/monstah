@@ -145,38 +145,70 @@ def run_duel_events(
     rng: np.random.Generator,
     *,
     n_rounds: int = 5,
+    scenario_id: str = "scenario",
+    run_index: int = 0,
 ) -> list[dict]:
     """Emit the canonical event log of one duel (real sim events, not fabricated).
 
-    Returns per-round events: hits/misses with damage and HP, plus the resolved
-    outcome. This is the SIMULATION -> EVENT link the shot graph consumes.
+    Each event has an immutable id `sim://<scenario>/run/<run_index>/event/<i>`
+    plus pre/post state (defender HP before/after), so shots can point at real
+    events with real first/last-frame state.
     """
     events: list[dict] = []
     hp = defender.hit_points
+    base = f"sim://{scenario_id}/run/{run_index}"
     for r in range(n_rounds):
+        pre = hp
         hit = attack_roll(rng, attacker.attack_bonus, defender.armor_class, 1)[0]
         if hit:
             dmg = int(damage_vec(rng, attacker.damage_dice, 1)[0])
             hp = max(0, hp - dmg)
             events.append(
                 {
+                    "event_id": f"{base}/event/{r:03d}",
                     "t": float(r),
                     "actor": attacker.name,
                     "action": "ATTACK",
                     "detail": f"hits {defender.name} for {dmg} (hp {hp})",
+                    "pre_state": {"defender_hp": pre, "round": r},
+                    "post_state": {"defender_hp": hp, "round": r},
                 }
             )
         else:
             events.append(
-                {"t": float(r), "actor": attacker.name, "action": "ATTACK", "detail": f"misses {defender.name}"}
+                {
+                    "event_id": f"{base}/event/{r:03d}",
+                    "t": float(r),
+                    "actor": attacker.name,
+                    "action": "ATTACK",
+                    "detail": f"misses {defender.name}",
+                    "pre_state": {"defender_hp": pre, "round": r},
+                    "post_state": {"defender_hp": pre, "round": r},
+                }
             )
         if hp <= 0:
             events.append(
-                {"t": float(r + 0.5), "actor": attacker.name, "action": "FEED", "detail": f"{defender.name} defeated"}
+                {
+                    "event_id": f"{base}/event/resolve",
+                    "t": float(r + 0.5),
+                    "actor": attacker.name,
+                    "action": "FEED",
+                    "detail": f"{defender.name} defeated",
+                    "pre_state": {"defender_hp": 0, "round": r},
+                    "post_state": {"defender_hp": 0, "round": r, "outcome": "attacker_wins"},
+                }
             )
             break
     if hp > 0:
         events.append(
-            {"t": float(n_rounds), "actor": "system", "action": "DISENGAGE", "detail": f"{defender.name} survives"}
+            {
+                "event_id": f"{base}/event/disengage",
+                "t": float(n_rounds),
+                "actor": "system",
+                "action": "DISENGAGE",
+                "detail": f"{defender.name} survives",
+                "pre_state": {"defender_hp": hp, "round": n_rounds},
+                "post_state": {"defender_hp": hp, "round": n_rounds, "outcome": "defender_survives"},
+            }
         )
     return events

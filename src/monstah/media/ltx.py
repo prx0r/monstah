@@ -27,6 +27,41 @@ class Canonicality(str, Enum):
     COUNTERFACTUAL = "COUNTERFACTUAL"
 
 
+class ScenarioMode(str, Enum):
+    """The scenario's truth policy (independent of any single shot)."""
+
+    HISTORICAL = "historical"
+    COUNTERFACTUAL = "counterfactual"
+
+
+class ShotBasis(str, Enum):
+    """What a specific shot is actually grounded in.
+
+    `ScenarioMode` says whether the scenario is historical or counterfactual;
+    `ShotBasis` says whether a given shot shows an observed fact, a
+    reconstruction, a simulated event, a graph relationship, or a projection.
+    They are independent axes: a historical scenario can have reconstruction
+    shots, and a graph-derived shot is NOT a canonical simulation event.
+    """
+
+    OBSERVED = "OBSERVED"
+    RECONSTRUCTION = "RECONSTRUCTION"
+    SIMULATION_EVENT = "SIMULATION_EVENT"
+    GRAPH_DERIVED = "GRAPH_DERIVED"
+    NARRATIVE_PROJECTION = "NARRATIVE_PROJECTION"
+
+
+def canonicality(mode: str, basis: ShotBasis) -> Canonicality:
+    """Derive LTX canonicality from two independent axes."""
+    if mode == "lab" or mode == ScenarioMode.COUNTERFACTUAL.value:
+        return Canonicality.COUNTERFACTUAL
+    if basis == ShotBasis.SIMULATION_EVENT:
+        return Canonicality.CANONICAL_EVENT
+    if basis == ShotBasis.NARRATIVE_PROJECTION:
+        return Canonicality.NARRATIVE_PROJECTION
+    return Canonicality.RECONSTRUCTION
+
+
 class ControlMode(str, Enum):
     T2V = "T2V"
     I2V = "I2V"

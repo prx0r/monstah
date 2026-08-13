@@ -62,14 +62,19 @@ class TypedValue:
     confidence: float = 0.0
 
     def promote(self, target: Layer) -> "TypedValue":
-        """Explicit, auditable promotion across the firewall (never implicit)."""
+        """Directed, auditable promotion. Strictly monotonic:
+
+            EVIDENCE → RECONSTRUCTION → SIMULATION
+
+        never upward, never across layers. Any other move is a firewall violation.
+        """
         if target == self.layer:
             return self
-        if not self.layer.is_scientific or not target.is_scientific:
+        if target not in _ALLOWED_PROMOTIONS.get(self.layer, set()):
             raise ValueError(
                 f"blocked promotion {self.layer.value} -> {target.value}: "
-                "scientific/evidence layers cannot cross into game-proxy/narrative "
-                "except through an explicit, labeled projection"
+                "epistemic layers only advance EVIDENCE→RECONSTRUCTION→SIMULATION, "
+                "and never cross into game-proxy/narrative except via a labeled projection"
             )
         return TypedValue(
             layer=target,
@@ -79,6 +84,16 @@ class TypedValue:
             source=self.source,
             confidence=self.confidence,
         )
+
+
+# Directed monotonic promotion edges. Simulation is the terminal scientific layer.
+_ALLOWED_PROMOTIONS: dict[Layer, set[Layer]] = {
+    Layer.EVIDENCE: {Layer.RECONSTRUCTION},
+    Layer.RECONSTRUCTION: {Layer.SIMULATION},
+    Layer.SIMULATION: set(),
+    Layer.GAME_PROXY: set(),
+    Layer.NARRATIVE: set(),
+}
 
 
 @dataclass
@@ -91,7 +106,11 @@ class TaxonFacts:
     game_proxy: dict[str, TypedValue] = field(default_factory=dict)
 
     def add(self, layer: Layer, key: str, tv: TypedValue) -> None:
-        tv.layer = layer
+        if tv.layer is not layer:
+            raise ValueError(
+                f"cannot place {tv.layer.value} value into {layer.value} bucket; "
+                "TypedValue.layer is immutable and must match its container"
+            )
         getattr(self, layer.value)[key] = tv
 
     def evidence_flat(self) -> dict[str, Any]:

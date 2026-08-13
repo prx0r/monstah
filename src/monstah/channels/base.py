@@ -27,8 +27,8 @@ from typing import Any
 from ..core.models import Entity, Environment, Reference
 from ..core.truth import Layer, TaxonFacts, TypedValue
 from ..discovery import Candidate, OverlapResult, ScenarioDiscovery, Taxon, check_historical_overlap
-from ..evidence.builder import assertions_from_facts, build_reconstruction, source_from
-from ..evidence.models import Reconstruction, Source
+from ..evidence.builder import build_evidence_pack, build_reconstruction, source_from
+from ..evidence.models import Assertion, Claim, Reconstruction, Source
 from ..narrative.novelty import NoveltyScorer
 from ..pipeline import PipelineOutput, run_candidate
 from ..simulations import Combatant
@@ -47,6 +47,8 @@ class ChannelManifest:
     versions: dict[str, str] = field(default_factory=dict)  # entity -> reconstruction version
     asset_uris: dict[str, str] = field(default_factory=dict)  # entity -> R2 asset uri
     sources: dict[str, Source] = field(default_factory=dict)
+    claims: dict[str, list[Claim]] = field(default_factory=dict)
+    assertions: dict[str, list[Assertion]] = field(default_factory=dict)
     reconstructions: dict[str, Reconstruction] = field(default_factory=dict)
 
 
@@ -193,8 +195,12 @@ class Channel:
                 title=t.name,
             )
             self.manifest.sources[t.ref.key] = src
-            # versioned reconstruction from evidence + labeled game-proxy
-            rec = build_reconstruction(t.ref, t.facts, src, version="R1")
+            # persist the full evidence chain: source → claim → assertion
+            pack = build_evidence_pack(t.ref, t.facts, src)
+            self.manifest.claims[t.ref.key] = pack.claims
+            self.manifest.assertions[t.ref.key] = pack.assertions
+            # versioned reconstruction referencing the SAME persisted assertion IDs
+            rec = build_reconstruction(t.ref, t.facts, src, version="R1", assertions=pack.assertions)
             self.manifest.reconstructions[t.ref.key] = rec
             self.manifest.versions[t.ref.key] = rec.version
             self.manifest.entities.setdefault(
@@ -260,6 +266,8 @@ class Channel:
             defender=defender,
             overlap=overlap,
             environment=env,
+            evidence=self.manifest.assertions,
+            versions=self.manifest.versions,
         )
 
     def produce_graph(
@@ -286,18 +294,28 @@ class Channel:
             evidence=overlap.summary(),
             conclusion="Graph/data story; no battle simulation run.",
         )
-        # media step still binds a real environment
-        env = self.adapter.environment_for_candidate(candidate, taxa_by_ref)
-        from ..media.shots import compile_shots
+        # media step still binds a real environment; basis is GRAPH_DERIVED
+        # (a graph relationship, NOT a simulated canonical event)
+        from ..media.ltx import ShotBasis
+        from ..media.shots import EntityVersion, ShotSpec
 
-        shots = compile_shots(
-            entity_versions=[
-                {"entity": a.name, "version": "R1", "asset_uri": ""},
-                {"entity": b.name, "version": "R1", "asset_uri": ""},
-            ],
-            environment=env.id if env else "",
-            event_log=[{"t": 0, "actor": a.name, "action": "INTERACT"}],
-        )
+        env = self.adapter.environment_for_candidate(candidate, taxa_by_ref)
+        shots = [
+            ShotSpec(
+                index=0,
+                entities=[
+                    EntityVersion(entity=a.name, version="R1", asset_uri=""),
+                    EntityVersion(entity=b.name, version="R1", asset_uri=""),
+                ],
+                environment=env.id if env else "",
+                event="",
+                event_ids=[],
+                basis=ShotBasis.GRAPH_DERIVED,
+                start_state={},
+                end_state={},
+                constraints=["graph-derived reconstruction; no simulation event"],
+            )
+        ]
         return PipelineOutput(
             candidate=candidate,
             overlap=overlap,
@@ -314,47 +332,71 @@ class Channel:
         return output
 
     def _ltx_bundle(self, output: PipelineOutput):
-        """Convert compiled shots into render-ready LTX ShotSpecs."""
+        """Convert compiled shots into render-ready LTX ShotSpecs.
+
+        Renderer config comes from a profile (config), never hardcoded in the
+        domain layer.
+        """
+        from ..config import get_settings
         from ..media import Project, RendererManifest, ShotBundle, to_ltx_shots
 
         ltx_shots = to_ltx_shots(output.shots, project=Project.MONSTAH, mode=output.candidate.mode)
         self._attach_references(ltx_shots, output)
+        profile = get_settings().renderer
         manifest = RendererManifest(
-            renderer_family="ltx",
-            renderer_version="2.3",
-            backend="comfyui",
-            model_variant="ltx-2-3-fast",
+            renderer_family=profile.family,
+            renderer_version=profile.version,
+            backend=profile.backend,
+            model_variant=profile.model_variant,
+            output={"resolution": profile.resolution, "fps": profile.fps, "generate_audio": profile.generate_audio},
         )
         return ShotBundle(project=self.theme, manifest=manifest, shots=ltx_shots)
 
     def _attach_references(self, ltx_shots, output: PipelineOutput) -> None:
-        """Resolve canonical image references for each shot's entities (I2V input).
+        """Attach canonical reconstruction references to each shot (I2V input).
 
-        Only runs when the adapter is online; offline/simulate keeps prompts pure.
+        Uses CanonicalAssetResolver: for extinct taxa it NEVER returns raw source
+        references — only an approved canonical reconstruction is eligible. For
+        extant taxa an explicit policy may allow observational morphology.
         """
         try:
             if getattr(self.adapter, "offline", False):
                 return
-            from ..media import ImageResolver
+            from ..media import AssetRole, CanonicalAssetResolver, ImageResolver
 
-            resolver = ImageResolver()
+            canonical = CanonicalAssetResolver(
+                source=ImageResolver(),
+                allow_observational_as_canonical=not self._is_extinct_world(),
+            )
             try:
                 refs_by_entity: dict[str, list[dict]] = {}
                 for ent in output.candidate.entities:
                     entity = self.manifest.entities.get(ent.key)
                     name = entity.name if entity else ent.key
+                    version = self.manifest.versions.get(ent.key, "R1")
+                    extinct = self._is_extinct(ent.key)
                     if name not in refs_by_entity:
                         refs_by_entity[name] = [
                             {"uri": c.original_uri, "license": c.license, "creator": c.creator}
-                            for c in resolver.best(name, n=3)
+                            for c in canonical.resolve(name, version, extinct=extinct)
                         ]
                 for shot in ltx_shots:
                     key = shot.entity_versions[0].split(":")[0] if shot.entity_versions else ""
                     shot.references = refs_by_entity.get(key, [])
             finally:
-                resolver.close()
-        except Exception:
-            pass  # asset resolution is best-effort; never blocks rendering
+                canonical.source.close()
+        except Exception as e:
+            # optional enrichment: fail open but never silently
+            import logging
+
+            logging.getLogger("monstah.media").warning("reference resolution failed: %s", e)
+
+    def _is_extinct_world(self) -> bool:
+        """Whether the theme reconstructs extinct worlds (never feed raw refs to LTX)."""
+        return any(e.refs and e.refs[0].namespace == "paleo" for e in self.manifest.entities.values())
+
+    def _is_extinct(self, entity_key: str) -> bool:
+        return self._is_extinct_world()
 
     def publish(self, output: PipelineOutput, store=None) -> str:
         """Persist the render bundle + story to R2 as canonical output."""

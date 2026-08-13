@@ -8,6 +8,7 @@ recorded as labeled simulation parameters, never as evidence.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from ..core.models import Reference
@@ -40,12 +41,38 @@ def source_from(
     )
 
 
+def claims_from_facts(
+    entity: Reference,
+    facts: TaxonFacts,
+    source: Source,
+) -> list[Claim]:
+    """Extract raw candidate claims from evidence facts (source -> claim).
+
+    Game-proxy values are excluded: they are simulation parameters, not claims
+    about the entity.
+    """
+    out: list[Claim] = []
+    for trait, tv in facts.evidence.items():
+        out.append(
+            Claim(
+                entity=entity,
+                trait=trait,
+                statement=f"{entity.key} {trait} ≈ {tv.value}",
+                source=Reference(namespace=source.namespace, key=source.external_id),
+                status=ClaimStatus(tv.status) if tv.status in ClaimStatus._value2member_map_ else ClaimStatus.INFERRED,
+                confidence=tv.confidence,
+                raw=str(tv.value),
+            )
+        )
+    return out
+
+
 def assertions_from_facts(
     entity: Reference,
     facts: TaxonFacts,
     source: Source,
 ) -> list[Assertion]:
-    """Convert evidence-layer facts into provenance-bearing assertions.
+    """Adjudicate evidence facts into provenance-bearing assertions.
 
     Game-proxy values are intentionally excluded: they are simulation
     parameters, not evidence about the entity.
@@ -62,12 +89,36 @@ def assertions_from_facts(
                 confidence=tv.confidence,
                 provenance=Provenance(
                     source=Reference(namespace=source.namespace, key=source.external_id),
-                    method=tv.source,
+                    method="evidence_fact",
                 ),
                 version="R1",
             )
         )
     return out
+
+
+@dataclass
+class EvidencePack:
+    """The full persistable evidence chain for one entity: source → claim → assertion."""
+
+    entity: Reference
+    source: Source
+    claims: list[Claim]
+    assertions: list[Assertion]
+
+    def assertion_by_id(self) -> dict[str, Assertion]:
+        return {a.id: a for a in self.assertions}
+
+
+def build_evidence_pack(
+    entity: Reference,
+    facts: TaxonFacts,
+    source: Source,
+) -> EvidencePack:
+    """Build source → claims → assertions in one pass with immutable IDs."""
+    claims = claims_from_facts(entity, facts, source)
+    assertions = assertions_from_facts(entity, facts, source)
+    return EvidencePack(entity=entity, source=source, claims=claims, assertions=assertions)
 
 
 def build_reconstruction(
@@ -77,11 +128,17 @@ def build_reconstruction(
     *,
     version: str = "R1",
     supersedes: str | None = None,
+    assertions: list[Assertion] | None = None,
 ) -> Reconstruction:
     """Assemble a versioned Reconstruction from a taxon's evidence + labeled
     simulation parameters. Game-proxy values are recorded under an explicit
-    `game_proxy` parameter key so they can never be mistaken for evidence."""
-    assertions = assertions_from_facts(entity, facts, source)
+    `game_proxy` parameter key so they can never be mistaken for evidence.
+
+    If `assertions` is provided it must be the persisted Assertion objects, so
+    the Reconstruction references the SAME immutable IDs that were stored.
+    """
+    if assertions is None:
+        assertions = assertions_from_facts(entity, facts, source)
     rec = Reconstruction(
         entity=entity,
         version=version,

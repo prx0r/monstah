@@ -46,11 +46,11 @@ REJECT_MARKERS = ("all rights reserved", "all-rights-reserved", "proprietary", "
 
 
 def license_usability(license_text: str) -> float:
-    """1.0 allow, 0.5 review, 0.0 reject. Unclear → 0.0 (never assume reuse)."""
+    """1.0 ALLOW, 0.5 REVIEW, 0.0 REJECT/UNKNOWN. Nothing is assumed reusable."""
     t = (license_text or "").strip().lower().replace(" ", "-")
     if not t:
         return 0.0
-    if any(m in t for m in ("all-rights-reserved", "proprietary", "copyrighted")):
+    if any(m in t for m in ("all-rights-reserved", "proprietary", "copyrighted", "unknown", "unclear")):
         return 0.0
     # unconditional reuse
     if t in ("public-domain", "pd", "cc0", "cc0-1.0", "no-known-copyright-restrictions", "public-domain-mark"):
@@ -60,10 +60,10 @@ def license_usability(license_text: str) -> float:
     # CC BY / CC BY-SA allow (any version suffix); NC/ND variants review
     if t.startswith("cc-by") and not any(x in t for x in ("-nc", "-nd")):
         return 1.0
-    # non-commercial / no-derivatives / GFDL need review
+    # recognized restricted
     if any(x in t for x in ("-nc", "-nd", "gfdl")):
         return 0.5
-    return 0.5
+    return 0.0  # unrecognized non-empty license -> REJECT/UNKNOWN, never REVIEW
 
 
 def license_tier(license_text: str) -> str:

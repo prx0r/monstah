@@ -52,9 +52,40 @@ class R2Config:
 
 
 @dataclass
+class RendererProfile:
+    """Named renderer configuration. Pin exact renderer data in the artifact manifest.
+
+    The domain layer never hardcodes a renderer version; it asks for a profile.
+    """
+
+    name: str = "final"
+    family: str = "ltx"
+    version: str = "2.5"
+    backend: str = "api"
+    model_variant: str = "ltx-2-5-pro"
+    resolution: str = "1920x1080"
+    fps: int = 24
+    generate_audio: bool = True
+
+    @classmethod
+    def named(cls, name: str) -> "RendererProfile":
+        profiles = {
+            "draft": cls(name="draft", version="2.5", model_variant="ltx-2-5-fast", backend="api", resolution="1280x720"),
+            "final": cls(name="final", version="2.5", model_variant="ltx-2-5-pro", backend="api", resolution="1920x1080"),
+            "retake": cls(name="retake", version="2.5", model_variant="ltx-2-5-pro", backend="api", resolution="1920x1080"),
+            "controlled": cls(name="controlled", version="2.5", model_variant="ltx-2-5-pro", backend="api",
+                              resolution="1920x1080"),
+        }
+        return profiles.get(name, profiles["final"])
+
+
+@dataclass
 class Settings:
     r2: R2Config = field(default_factory=R2Config)
     pbdb_cache: str = field(default_factory=lambda: _env("PBDB_CACHE", "~/.cache/monstah"))
+    renderer: RendererProfile = field(
+        default_factory=lambda: RendererProfile.named(_env("RENDERER_PROFILE", "final"))
+    )
 
 
 def get_settings() -> Settings:

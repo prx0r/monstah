@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..core.models import Shot
-from .ltx import Canonicality, ControlMode, Project, ShotSpec as LtxShotSpec
+from .ltx import Canonicality, ControlMode, Project, ShotBasis, ShotSpec as LtxShotSpec
 
 
 @dataclass
@@ -26,12 +26,18 @@ class EntityVersion:
 
 @dataclass
 class ShotSpec:
-    """Pipeline-level shot: an ordered canonical event bound to versions."""
+    """Pipeline-level shot: an ordered event bound to versions.
+
+    `basis` says what the shot is grounded in (SIMULATION_EVENT, RECONSTRUCTION,
+    GRAPH_DERIVED...). `event_ids` reference immutable canonical events.
+    """
 
     index: int
     entities: list[EntityVersion] = field(default_factory=list)
     environment: str = ""
     event: str = ""
+    event_ids: list[str] = field(default_factory=list)
+    basis: ShotBasis = ShotBasis.RECONSTRUCTION
     start_state: dict = field(default_factory=dict)
     end_state: dict = field(default_factory=dict)
     camera: str = "low tracking"
@@ -46,6 +52,8 @@ class ShotSpec:
             action={
                 "entities": [e.__dict__ for e in self.entities],
                 "event": self.event,
+                "event_ids": self.event_ids,
+                "basis": self.basis.value,
                 "constraints": self.constraints,
             },
             duration=self.duration,
@@ -55,10 +63,12 @@ class ShotSpec:
         self,
         *,
         project: Project = Project.MONSTAH,
-        canonicality: Canonicality = Canonicality.RECONSTRUCTION,
+        mode: str = "historical",
         prompt: str = "",
         aspect_ratio: str = "16:9",
     ) -> LtxShotSpec:
+        from .ltx import canonicality
+
         entity_versions = []
         for e in self.entities:
             if isinstance(e, dict):
@@ -68,15 +78,15 @@ class ShotSpec:
         return LtxShotSpec(
             shot_id=f"{project.value}-{self.index:03d}",
             project=project,
-            canonicality=canonicality,
+            canonicality=canonicality(mode, self.basis),
             entity_versions=entity_versions,
             environment_version=self.environment or None,
-            event_ids=[self.event] if self.event else [],
-            prompt=prompt or f"A {self.camera} shot of the canonical event {self.event or 'reconstruction'}.",
+            event_ids=self.event_ids,
+            prompt=prompt or f"A {self.camera} shot of {self.basis.value.lower()} {self.event or ''}.",
             duration_s=self.duration,
             aspect_ratio=aspect_ratio,
             control_mode=ControlMode.I2V if entity_versions else ControlMode.T2V,
-            camera={"style": self.camera},
+            camera={"style": self.camera, "pre_state": self.start_state, "post_state": self.end_state},
             constraints=self.constraints,
         )
 
@@ -91,20 +101,24 @@ def compile_shots(
 ) -> list[ShotSpec]:
     """Map an ordered canonical event log to a shot graph.
 
-    Each distinct event becomes a shot; the shot inherits the entity/environment
-    versions but is constrained by what the event actually records.
+    Each distinct event becomes a shot carrying its immutable event id and real
+    pre/post state. The shot inherits the entity/environment versions but is
+    constrained by what the event actually records.
     """
     shots: list[ShotSpec] = []
     for i, ev in enumerate(event_log):
-        constraint = f"rendered event '{ev.get('action', '')}' ({ev.get('detail', '')}) as logged; no unlogged outcomes"
+        constraint = f"rendered event '{ev.get('action', '')}' as logged; no unlogged outcomes"
+        eid = ev.get("event_id", f"evt:{i}")
         shots.append(
             ShotSpec(
                 index=i,
                 entities=list(entity_versions),
                 environment=environment,
                 event=f"{ev.get('actor', '')}:{ev.get('action', '')}",
-                start_state={"t": ev.get("t", 0.0)},
-                end_state={"t": ev.get("t", 0.0) + duration},
+                event_ids=[eid],
+                basis=ShotBasis.SIMULATION_EVENT if ev.get("action") != "GRAPH" else ShotBasis.GRAPH_DERIVED,
+                start_state=ev.get("pre_state", {"t": ev.get("t", 0.0)}),
+                end_state=ev.get("post_state", {"t": ev.get("t", 0.0) + duration}),
                 camera=camera,
                 duration=duration,
                 constraints=[constraint],
@@ -114,11 +128,11 @@ def compile_shots(
 
 
 def canonicality_for_mode(mode: str) -> Canonicality:
-    """Map the pipeline truth layer to an LTX canonicality label."""
+    """Back-compat mode-only mapping (legacy; the pipeline uses canonicality(mode,basis))."""
+    if mode in ("lab", "counterfactual"):
+        return Canonicality.COUNTERFACTUAL
     if mode == "historical":
         return Canonicality.CANONICAL_EVENT
-    if mode == "lab":
-        return Canonicality.COUNTERFACTUAL
     return Canonicality.RECONSTRUCTION
 
 
@@ -129,5 +143,4 @@ def to_ltx_shots(
     mode: str = "historical",
 ) -> list[LtxShotSpec]:
     """Convert compiled shots into render-ready LTX ShotSpecs."""
-    canonicality = canonicality_for_mode(mode)
-    return [s.to_ltx(project=project, canonicality=canonicality) for s in shots]
+    return [s.to_ltx(project=project, mode=mode) for s in shots]

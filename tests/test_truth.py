@@ -36,3 +36,31 @@ def test_promotion_evidence_to_reconstruction_allowed():
     rec = ev.promote(Layer.RECONSTRUCTION)
     assert rec.layer is Layer.RECONSTRUCTION
     assert rec.status == Status.MODELLED.value
+
+
+def test_promotion_is_monotonic():
+    # allowed edges: EVIDENCE->RECONSTRUCTION->SIMULATION, never upward/back
+    ev = TypedValue(Layer.EVIDENCE, 1)
+    rec = ev.promote(Layer.RECONSTRUCTION)
+    sim = rec.promote(Layer.SIMULATION)
+    assert sim.layer is Layer.SIMULATION
+    # RECONSTRUCTION -> EVIDENCE is an upward violation
+    with pytest.raises(ValueError):
+        rec.promote(Layer.EVIDENCE)
+    # SIMULATION is terminal: cannot promote to RECONSTRUCTION
+    with pytest.raises(ValueError):
+        sim.promote(Layer.RECONSTRUCTION)
+    # EVIDENCE -> SIMULATION direct is blocked (must go through reconstruction)
+    with pytest.raises(ValueError):
+        ev.promote(Layer.SIMULATION)
+
+
+def test_taxonfacts_rejects_layer_relabeling():
+    t = _taxon()
+    t.set_evidence("mass_kg", 7000)
+    # a reconstruction-typed value cannot be placed into the evidence bucket
+    from monstah.core.truth import TypedValue
+
+    tv = TypedValue(Layer.RECONSTRUCTION, 7000)
+    with pytest.raises(ValueError):
+        t.facts.add(Layer.EVIDENCE, "mass_kg", tv)

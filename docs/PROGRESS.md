@@ -62,9 +62,29 @@ the evidence layer; Deep Blue genuinely OBIS-driven; MC runs replayable; real ev
 - Matchups (1.26M avg) = Shorts discovery engine. Space (3.9M) = strong later.
 - Weak: Evolution (208k), generic wildlife (633k). See `CHANNELS.md`.
 
-## Tests (25, offline, fast)
+## Integrity hardening (second peer review — G–N, done)
+- **G — monotonic firewall:** promotions are strictly directed
+  `EVIDENCE→RECONSTRUCTION→SIMULATION`; `TaxonFacts.add` rejects layer relabeling.
+- **H — evidence chain persists:** `Source→Claim→Assertion→Reconstruction` all retained
+  in the manifest with the SAME immutable IDs; `NarrativeClaim` now resolves to real
+  persisted Assertion IDs + Source refs (no fabricated strings).
+- **I — canonical vs source assets:** `CanonicalAssetResolver` never feeds raw source
+  refs to LTX for extinct taxa; extant only via an explicit policy.
+- **J — provider/license semantics:** unknown license → REJECT (never REVIEW); BHL reads
+  real rights (no manufactured PD); Wikimedia uses raw file URL + classification;
+  iNaturalist actually selects open-data original; resolver preserves provider roles.
+- **K — mode ≠ basis:** new `ShotBasis` (SIMULATION_EVENT/RECONSTRUCTION/GRAPH_DERIVED/...)
+  independent of `ScenarioMode`; graph shots are GRAPH_DERIVED, not fake canonical events.
+- **L — real event identity + state:** events carry immutable
+  `sim://scenario/run/i/event/j` ids + pre/post defender state; shots reference them.
+- **M — renderer profile:** renderer version/model come from a `RendererProfile` in
+  config (draft/final/retake/controlled), default LTX-2.5, not hardcoded in domain.
+- **N — CI:** `.github/workflows/ci.yml` (offline pytest + compileall).
+
+## Tests (30, offline, fast)
 `test_truth` · `test_montecarlo` · `test_historical` · `test_channels` ·
-`test_media` · `test_assets`. Run with `.venv/bin/python -m pytest tests/`.
+`test_media` · `test_assets` · `test_evidence`. All offline; channel tests use
+offline adapters. Run with `.venv/bin/python -m pytest tests/`.
 
 ## Docs
 `docs/INDEX.md` is the map. See README at repo root for quickstart + CLI.
