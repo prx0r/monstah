@@ -209,6 +209,47 @@ def _cmd_resume(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_opportunity(args: argparse.Namespace) -> int:
+    """Rank candidate topics by demand signal + production economics."""
+    from .discovery.opportunity import OpportunityScorer, TopicSignal, signals_for
+
+    topics = args.topics or [
+        "deep sea", "dinosaurs", "tyrannosaurus", "prehistoric",
+        "ocean animals", "exoplanet", "space exploration", "ancient rome",
+        "ancient egypt", "evolution", "sperm whale", "giant squid",
+        "underwater", "extinction", "history documentary",
+    ]
+    signals, supply, used_google = signals_for(topics, use_google=args.google, days=args.days)
+    # normalize demand + supply to 0..1 across the batch so the score is comparable
+    max_demand = max((s.current for s in signals if s.current > 0), default=1.0)
+    max_supply = max((supply.get(t, 0) for t in topics), default=1.0) or 1.0
+    norm_signals = []
+    norm_supply = {}
+    for s in signals:
+        norm_signals.append(TopicSignal(topic=s.topic, current=s.current / max_demand,
+                                        baseline=s.baseline, velocity=s.velocity))
+    for t in topics:
+        c = supply.get(t, 0)
+        norm_supply[t] = min(1.0, c / max_supply) if c else 0.4
+    scorer = OpportunityScorer(
+        supply=norm_supply,
+        asset_reuse={t: 0.6 for t in topics},
+        evidence={t: 0.7 for t in topics},
+        evergreen={t: 0.6 for t in topics},
+        novelty={t: 0.5 for t in topics},
+    )
+    opps = sorted((scorer.score(s) for s in norm_signals), key=lambda o: o.score, reverse=True)
+    print(f"source: {'Google Trends' if used_google else 'local YouTube-trending'}\n")
+    print(f"{'OPPORTUNITY':<22} {'score':>7} {'demand':>9} {'supply':>7}")
+    for o in opps[: args.top_n]:
+        s = o.signal
+        dem = f"{s.current * max_demand:,.0f}" if not used_google else f"{s.current * 100:.0f}"
+        raw_supply = supply.get(o.topic, 0)
+        sup = f"{raw_supply:.0f}" if raw_supply >= 1 else f"{o.factors['supply_penalty']:0.2f}"
+        print(f"{o.topic:<22} {o.score:7.3f} {dem:>9} {sup:>7}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="monstah", description="world model engine")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -251,6 +292,13 @@ def main(argv: list[str] | None = None) -> int:
     resume.add_argument("channel", help=f"one of: {', '.join(list_channels())}")
     resume.add_argument("run", help="run id (path to RUN.json)")
     resume.set_defaults(func=_cmd_resume)
+
+    opp = sub.add_parser("opportunity", help="rank topics by demand signal + production economics")
+    opp.add_argument("topics", nargs="*")
+    opp.add_argument("--days", type=int, default=30, dest="days")
+    opp.add_argument("--top-n", type=int, default=12, dest="top_n")
+    opp.add_argument("--google", action="store_true", help="force live Google Trends (may be rate-limited)")
+    opp.set_defaults(func=_cmd_opportunity)
 
     i = sub.add_parser("ingest", help="ingest taxa from PBDB + Macrostrat")
     i.add_argument("taxa", nargs="*")
