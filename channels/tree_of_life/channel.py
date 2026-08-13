@@ -9,13 +9,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..core.models import Environment, Reference
-from ..core.truth import Status
-from ..discovery import Candidate, Taxon
-from ..ingest.opentree import OpenTreeClient
-from ..narrative import EpisodeSpec
-from ..media.shots import compile_shots
-from .base import Channel, ChannelManifest, EvidenceAdapter
+from monstah.core.models import Environment, Reference
+from monstah.core.truth import Status
+from monstah.discovery import Candidate, Taxon
+from monstah.ingest.opentree import OpenTreeClient
+from monstah.narrative import EpisodeSpec
+from monstah.media.shots import compile_shots
+from channels.base import Channel, ChannelManifest, EvidenceAdapter
 
 # (label, scientific name hint)
 TAXA = [

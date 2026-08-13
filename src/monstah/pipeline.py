@@ -115,7 +115,8 @@ def run_candidate(
     # SIMULATION -> EVENT -> STORY -> SHOT: emit the canonical event log of the
     # representative selected run (real events, never fabricated)
     rep_idx = mc.selected.get("representative", 0)
-    event_log = _run_events(attacker, defender, mc, rep_idx, candidate.template)
+    scenario_uid = f"{candidate.template}:{a.ref.key}-{b.ref.key}"
+    event_log = _run_events(attacker, defender, mc, rep_idx, scenario_uid)
     versions = versions or {}
     env_key = environment.id if environment is not None else ""
     shots = compile_shots(

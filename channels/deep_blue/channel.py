@@ -9,12 +9,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..core.models import Environment, Reference
-from ..core.truth import Status
-from ..discovery import Candidate, Taxon
-from ..ingest.obis import ObisClient
-from ..ingest.open5e import Open5eClient
-from .base import EvidenceAdapter
+from monstah.core.models import Environment, Reference
+from monstah.core.truth import Status
+from monstah.discovery import Candidate, Taxon
+from monstah.ingest.obis import ObisClient
+from monstah.ingest.open5e import Open5eClient
+from channels.base import EvidenceAdapter
 
 # marine combatants: scientific name -> open5e slug (game proxy only)
 MARINE = {
@@ -108,7 +108,7 @@ class DeepBlueAdapter(EvidenceAdapter):
         try:
             mon = self.open5e.monster(slug)
             if mon:
-                from ..simulations import Combatant
+                from monstah.simulations import Combatant
 
                 cb = Combatant.from_open5e(mon)
                 return {
@@ -124,7 +124,7 @@ class DeepBlueAdapter(EvidenceAdapter):
 
 
 def deepblue_channel(*, n_runs: int = 1000, offline: bool = False) -> "Channel":
-    from .base import Channel, ChannelManifest
+    from channels.base import Channel, ChannelManifest
 
     manifest = ChannelManifest(
         name="deep-blue",

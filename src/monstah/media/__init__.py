@@ -12,6 +12,7 @@ from .asset import (
 from .ltx import Canonicality, ControlMode, Project, RendererManifest, ShotBundle, ShotSpec as LtxShotSpec
 from .providers import (
     BhlProvider,
+    CanonicalAssetResolver,
     GbifImageProvider,
     ImageProvider,
     ImageResolver,
@@ -33,6 +34,7 @@ __all__ = [
     "AssetPack",
     "AssetRole",
     "BhlProvider",
+    "CanonicalAssetResolver",
     "Canonicality",
     "ControlMode",
     "EntityVersion",

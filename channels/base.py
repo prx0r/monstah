@@ -24,14 +24,14 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..core.models import Entity, Environment, Reference
-from ..core.truth import Layer, TaxonFacts, TypedValue
-from ..discovery import Candidate, OverlapResult, ScenarioDiscovery, Taxon, check_historical_overlap
-from ..evidence.builder import build_evidence_pack, build_reconstruction, source_from
-from ..evidence.models import Assertion, Claim, Reconstruction, Source
-from ..narrative.novelty import NoveltyScorer
-from ..pipeline import PipelineOutput, run_candidate
-from ..simulations import Combatant
+from monstah.core.models import Entity, Environment, Reference
+from monstah.core.truth import Layer, TaxonFacts, TypedValue
+from monstah.discovery import Candidate, OverlapResult, ScenarioDiscovery, Taxon, check_historical_overlap
+from monstah.evidence.builder import build_evidence_pack, build_reconstruction, source_from
+from monstah.evidence.models import Assertion, Claim, Reconstruction, Source
+from monstah.narrative.novelty import NoveltyScorer
+from monstah.pipeline import PipelineOutput, run_candidate
+from monstah.simulations import Combatant
 
 
 # --- manifest ---------------------------------------------------------------
@@ -178,7 +178,7 @@ class Channel:
         self._analytics = None  # lazily created DuckStore
 
     def _get_analytics(self):
-        from ..data.duck import DuckStore
+        from monstah.data.duck import DuckStore
 
         if self._analytics is None:
             self._analytics = DuckStore()
@@ -286,7 +286,7 @@ class Channel:
         Channels override this when their content is data/graph/timeline
         stories rather than battles (thesis §50).
         """
-        from ..narrative import EpisodeSpec
+        from monstah.narrative import EpisodeSpec
 
         a = taxa_by_ref[candidate.entities[0].key]
         b = taxa_by_ref[candidate.entities[1].key]
@@ -301,8 +301,8 @@ class Channel:
         )
         # media step still binds a real environment; basis is GRAPH_DERIVED
         # (a graph relationship, NOT a simulated canonical event)
-        from ..media.ltx import ShotBasis
-        from ..media.shots import EntityVersion, ShotSpec
+        from monstah.media.ltx import ShotBasis
+        from monstah.media.shots import EntityVersion, ShotSpec
 
         env = self.adapter.environment_for_candidate(candidate, taxa_by_ref)
         v_a = self.manifest.versions.get(a.ref.key, "R1")
@@ -344,8 +344,8 @@ class Channel:
         Renderer config comes from a profile (config), never hardcoded in the
         domain layer.
         """
-        from ..config import get_settings
-        from ..media import Project, RendererManifest, ShotBundle, to_ltx_shots
+        from monstah.config import get_settings
+        from monstah.media import Project, RendererManifest, ShotBundle, to_ltx_shots
 
         ltx_shots = to_ltx_shots(output.shots, project=Project.MONSTAH, mode=output.candidate.mode)
         self._attach_references(ltx_shots, output)
@@ -369,7 +369,7 @@ class Channel:
         try:
             if getattr(self.adapter, "offline", False):
                 return
-            from ..media import AssetRole, CanonicalAssetResolver, ImageResolver
+            from monstah.media import AssetRole, CanonicalAssetResolver, ImageResolver
 
             canonical = CanonicalAssetResolver(
                 source=ImageResolver(),
@@ -409,7 +409,7 @@ class Channel:
         """Persist the render bundle + story to R2 AND the durable store."""
         import json
 
-        from ..media.storage import R2Store
+        from monstah.media.storage import R2Store
 
         store = store or R2Store(prefix=f"canonical/channels/{self.theme}")
         payload = {

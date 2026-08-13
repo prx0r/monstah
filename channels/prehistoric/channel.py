@@ -9,12 +9,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..core.models import Environment, Reference
-from ..core.truth import Layer, Status, TypedValue
-from ..discovery import Candidate, Taxon
-from ..domains.paleo.seed import SEED_TAXA, seed_environments
-from ..ingest.open5e import Open5eClient
-from .base import EvidenceAdapter
+from monstah.core.models import Environment, Reference
+from monstah.core.truth import Layer, Status, TypedValue
+from monstah.discovery import Candidate, Taxon
+from monstah.domains.paleo.seed import SEED_TAXA, seed_environments
+from monstah.ingest.open5e import Open5eClient
+from channels.base import EvidenceAdapter
 
 STATBLOCK_SLUGS = {
     "Tyrannosaurus rex": "tyrannosaurus-rex",
@@ -97,7 +97,7 @@ class PrehistoricAdapter(EvidenceAdapter):
             try:
                 mon = self.open5e.monster(slug)
                 if mon:
-                    from ..simulations import Combatant
+                    from monstah.simulations import Combatant
 
                     cb = Combatant.from_open5e(mon)
                     return {
@@ -122,7 +122,7 @@ def _derive_combat(name: str) -> dict:
 
 
 def prehistoric_channel(*, n_runs: int = 1000, offline: bool = False) -> "Channel":
-    from .base import Channel, ChannelManifest
+    from channels.base import Channel, ChannelManifest
 
     manifest = ChannelManifest(
         name="prehistoric",

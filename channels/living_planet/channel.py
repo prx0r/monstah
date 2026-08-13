@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..core.models import Environment, Reference
-from ..discovery import Candidate, Taxon
-from ..ingest.globi import GlobiClient
-from .base import Channel, ChannelManifest, EvidenceAdapter
+from monstah.core.models import Environment, Reference
+from monstah.discovery import Candidate, Taxon
+from monstah.ingest.globi import GlobiClient
+from channels.base import Channel, ChannelManifest, EvidenceAdapter
 
 TAXA = [
     ("Orcinus orca", "Killer Whale", "carnivore"),
@@ -54,7 +54,7 @@ class LivingPlanetChannel(Channel):
         self._adapter = adapter
 
     def produce_graph(self, candidate: Candidate, taxa_by_ref: dict[str, Taxon], overlap=None):
-        from ..narrative import EpisodeSpec
+        from monstah.narrative import EpisodeSpec
 
         a = taxa_by_ref[candidate.entities[0].key]
         b = taxa_by_ref[candidate.entities[1].key]

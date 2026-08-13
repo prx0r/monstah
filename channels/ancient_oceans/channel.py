@@ -6,12 +6,12 @@ oceanic paleoenvironments. Same shared battle engine.
 
 from __future__ import annotations
 
-from ..core.models import Environment, Reference
-from ..core.truth import Status
-from ..discovery import Candidate, Taxon
-from ..domains.paleo.seed import SEED_TAXA, seed_environments
-from .base import Channel, ChannelManifest, EvidenceAdapter
-from .prehistoric import _derive_combat
+from monstah.core.models import Environment, Reference
+from monstah.core.truth import Status
+from monstah.discovery import Candidate, Taxon
+from monstah.domains.paleo.seed import SEED_TAXA, seed_environments
+from channels.base import Channel, ChannelManifest, EvidenceAdapter
+from channels.prehistoric.channel import _derive_combat
 
 MARINE_ENV = {"marine", "sea", "coastal"}
 

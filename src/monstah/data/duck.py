@@ -98,7 +98,7 @@ class DuckStore:
         import json
 
         self._con.executemany(
-            "INSERT INTO events (id, scenario, run_index, actor, action, detail, pre_state, post_state) VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT OR REPLACE INTO events (id, scenario, run_index, actor, action, detail, pre_state, post_state) VALUES (?,?,?,?,?,?,?,?)",
             [
                 (e["event_id"], scenario, run_index, e.get("actor"), e.get("action"), e.get("detail"),
                  json.dumps(e.get("pre_state", {})), json.dumps(e.get("post_state", {})))

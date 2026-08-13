@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from monstah.channels import get_channel, list_channels
-from monstah.channels.base import Channel
+from channels.base import Channel
 
 
 @pytest.fixture(scope="module")
@@ -84,7 +84,7 @@ def test_evidence_chain_is_persisted_to_durable_store(tmp_path):
 
 
 def test_deepblue_is_obis_driven():
-    from monstah.channels.deepblue import DeepBlueAdapter
+    from channels.deep_blue.channel import DeepBlueAdapter
 
     ad = DeepBlueAdapter(offline=True)
     taxa = ad.load_taxa(limit=3)
