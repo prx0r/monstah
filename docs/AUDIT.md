@@ -51,7 +51,7 @@ is real (no stubs); a few modules are legacy/unwired and are flagged explicitly.
 ## Wiring gaps (known, by design)
 - **Postgres** canonical store is optional (needs `POSTGRES_DSN`); DuckDB + R2 are the default persistence.
 - **LTX-2.5 API** renderer is a contract + `OfflineRenderer` (deterministic); live video needs an `LTX_API_KEY` + wiring.
-- **ffmpeg** assembly runs only if `ffmpeg` is installed; otherwise a deterministic assembly plan/manifest is emitted.
+- **Film assembly is honest:** `EpisodeAssembler` only runs ffmpeg on *real* media inputs and sets `produced=True` + writes `master.mp4` only when it can. The offline MVP produces **no film** — the run honestly stays at `QA`/`RENDERING` (draft render plan) and never falsely claims `ASSEMBLED`/`PUBLISHED`. `resume` short-circuits terminal runs; mid-run resumption that avoids re-running completed stages needs persisted intermediate outputs (documented gap).
 - **Vision QA** (VisualIdentityQA) is a deterministic skeleton; a real vision model can plug in.
 - **Executable EpisodeSpec** (`story/episode.py`) is not yet the pipeline's output.
 

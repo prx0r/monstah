@@ -76,8 +76,34 @@ def test_production_run_resume(tmp_path):
 def test_produce_episode_full_slice():
     out = tempfile.mkdtemp()
     res = produce_episode("prehistoric", world_id="hell-creek", out_dir=out, n_runs=50)
-    assert res.episode_manifest.digest()
     assert res.render_jobs
     assert res.qa
-    assert res.run.stage is RunStage.PUBLISHED
-    assert res.assembly["master"] == "16:9"
+    # HONESTY: offline renderer produces draft manifests, not a real film, so the
+    # run must NOT falsely claim PUBLISHED/ASSEMBLED without a master.mp4.
+    if res.assembly.get("produced"):
+        assert res.run.stage is RunStage.PUBLISHED
+        assert res.assembly.get("master_uri")
+    else:
+        assert res.run.stage in (RunStage.RENDERING, RunStage.QA)
+        assert res.assembly["produced"] is False
+        assert res.episode_manifest.master_video_digest == ""  # no fabricated film
+
+
+def test_assembler_produces_real_film_when_media_present(tmp_path):
+    import shutil
+
+    if not shutil.which("ffmpeg"):
+        return  # cannot run without ffmpeg
+    from monstah.media.assembler import EpisodeAssembler, Segment
+
+    # create a tiny real video segment ffmpeg can concatenate
+    real = tmp_path / "clip.mp4"
+    import subprocess
+
+    subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=red:s=160x90:d=1",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", str(real)],
+                   capture_output=True, check=True)
+    asm = EpisodeAssembler(workdir=tmp_path)
+    result = asm.assemble([Segment(kind="clip", uri=str(real), duration=1.0)])
+    assert result["produced"] is True
+    assert (tmp_path / "master.mp4").exists()

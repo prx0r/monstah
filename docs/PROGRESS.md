@@ -37,10 +37,13 @@ MVP vertical slice (`monstah produce`) running, 59 offline tests, full audit + h
 
 ## The MVP vertical slice (the main path)
 `monstah produce prehistoric --world hell-creek --out out/produce` runs:
-ingest → world snapshot → scenario manifest → battle → story → shots → render →
-4-layer QA → assemble → publish, resumable via `RUN.json`, emitting
-`episode-manifest.json` + `assembly.json`. Offline by default (deterministic renderer
-+ graphics); live LTX/ffmpeg/Postgres are optional and key/DSN-gated.
+ingest → world snapshot → scenario manifest → battle → story → shots → draft render →
+4-layer QA → assemble. **Honest film gating:** a real `master.mp4` is produced only
+when actual media inputs exist (ffmpeg actually runs); the offline renderer produces
+draft manifests, so the run honestly ends at `QA`/`RENDERING` with `film: NONE` — it
+never falsely claims `ASSEMBLED`/`PUBLISHED`. `resume` short-circuits terminal runs;
+mid-run resumption needs persisted intermediates (documented gap). Live LTX/ffmpeg/
+Postgres are optional and key/DSN-gated.
 
 ## Integrity hardening (peer-review G–N, done)
 Monotonic firewall (EVIDENCE→RECONSTRUCTION→SIMULATION only), persisted evidence chain

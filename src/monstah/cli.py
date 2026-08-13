@@ -185,11 +185,15 @@ def _cmd_produce(args: argparse.Namespace) -> int:
         n_runs=args.runs,
         resume_run=args.resume,
     )
-    print(f"run: {res.run.run_id}")
+    print(f"run: {res.run.run_id} | stage: {res.run.stage.value}")
     print(f"stages: {list(res.run.digests.keys())}")
-    print(f"shots rendered: {len(res.render_jobs)} | QA: {len(res.qa)}")
-    print(f"episode manifest digest: {res.episode_manifest.digest()}")
-    print(f"assembly: {res.assembly['master']} master + {res.assembly['derivatives']} derivatives")
+    print(f"shots rendered (draft): {len(res.render_jobs)} | QA: {len(res.qa)}")
+    if res.assembly.get("produced"):
+        print(f"film: {res.assembly.get('master_uri')}")
+    else:
+        print("film: NONE (draft plan only — needs real LTX/ffmpeg-compatible media inputs)")
+    if res.episode_manifest.digest():
+        print(f"episode manifest digest: {res.episode_manifest.digest()}")
     return 0
 
 
@@ -197,7 +201,11 @@ def _cmd_resume(args: argparse.Namespace) -> int:
     from .production.produce import produce_episode
 
     res = produce_episode(args.channel, resume_run=args.run)
-    print(f"resumed run {res.run.run_id} to {res.run.stage.value}")
+    print(f"resumed run {res.run.run_id} -> stage {res.run.stage.value}")
+    if res.assembly.get("produced"):
+        print(f"film: {res.assembly.get('master_uri')}")
+    else:
+        print("film: NONE (draft plan only)")
     return 0
 
 

@@ -46,6 +46,22 @@ def produce_episode(
     out = Path(run.out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
+    # Honest resume: a terminal run is short-circuited (reload artifacts, no re-run).
+    # Mid-run resumption that avoids re-running completed stages requires persisted
+    # intermediate outputs (a documented gap) — offline re-ingest is cheap, so we
+    # proceed from the recorded stage's successor below.
+    if run.stage is RunStage.PUBLISHED:
+        mf = out / "episode-manifest.json"
+        manifest = EpisodeManifest(episode_id=run.channel)
+        if mf.exists():
+            import json as _json
+
+            manifest = EpisodeManifest(episode_id=run.channel,
+                                       **{k: v for k, v in _json.loads(mf.read_text()).items()
+                                          if k in EpisodeManifest.__dataclass_fields__})
+        return ProduceResult(run=run, episode_manifest=manifest, assembly={},
+                             render_jobs={}, qa=[])
+
     # 1. INGEST
     ch = get_channel(channel_name, n_runs=n_runs, offline=True)
     taxa = ch.ingest(limit=12)
@@ -103,28 +119,40 @@ def produce_episode(
         render_jobs[shot.shot_id] = renderer.fetch(job)
     run.mark(RunStage.RENDERING, f"rendered:{len(render_jobs)}")
 
-    # 9. QA (four layers, uncertainty-aware)
+    # 9. QA (four layers, uncertainty-aware, with REAL claims so invented
+    #    content can actually be flagged)
     spec = VisualReconstructionSpec(entity_id=by_ref[list(by_ref)[0]].name if by_ref else "x",
                                     reconstruction_id=world.world_id,
                                     appearance={"coloration": Certainty.OPEN, "morphology": Certainty.INFERRED})
     constraints = ReconstructionConstraintSet.from_spec(spec)
+    claims = [getattr(c, "text", "") for c in getattr(output.story, "narrative_claims", []) or []]
     qa_results = []
     for shot in shots_v2:
         qa_results.extend(
             run_qa(shot, renderer_manifest=render_jobs.get(shot.shot_id, {}),
-                   constraints=constraints, events=output.event_log, claims=[])
+                   constraints=constraints, events=output.event_log, claims=claims)
         )
     run.mark(RunStage.QA, f"qa:{len(qa_results)}")
 
-    # 10. ASSEMBLE (short film plan; ffmpeg combines when available)
+    # 10. ASSEMBLE — only reached if a REAL film can be produced; otherwise the
+    #     run honestly stays at RENDERING (draft plan, no film).
     assembler = EpisodeAssembler(workdir=out)
     narration = _compile_narration(output)
     assembly = assembler.assemble(
         assembler.plan(shots=shots_v2, narration=narration, render_jobs=render_jobs, evidence=[])
     )
-    run.mark(RunStage.ASSEMBLED, f"assembly:{len(assembly['segments'])}")
+    if assembly.get("produced"):
+        run.mark(RunStage.ASSEMBLED, f"film:{assembly.get('master_uri')}")
+    else:
+        # Honest: no real media inputs => no film; the run stays at QA (draft
+        # render plan produced). Do NOT claim ASSEMBLED/PUBLISHED.
+        run.save()
+        return ProduceResult(run=run, episode_manifest=EpisodeManifest(episode_id=f"{world_id}:{cand.template}"),
+                             assembly=assembly, render_jobs=render_jobs,
+                             qa=[{"layer": q.layer, "verdict": q.verdict.value, "detail": q.detail}
+                                 for q in qa_results])
 
-    # 11. EPISODE MANIFEST + PUBLISH
+    # 11. EPISODE MANIFEST + PUBLISH (only after a real film exists)
     manifest = EpisodeManifest(
         episode_id=f"{world_id}:{cand.template}",
         world_snapshot_digest=world.digest(),
