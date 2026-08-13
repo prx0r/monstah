@@ -31,6 +31,7 @@ from .base import (
     TruthPolicy,
 )
 from .deep_blue import deepblue_channel
+from .extinction import extinction_channel
 from .living_planet import living_planet_channel
 from .prehistoric import prehistoric_channel
 from .tree_of_life import tree_of_life_channel
@@ -39,6 +40,7 @@ _CHANNELS = {
     "prehistoric": prehistoric_channel,
     "ancient-oceans": ancient_oceans_channel,
     "deep-blue": deepblue_channel,
+    "extinction": extinction_channel,
     "living-planet": living_planet_channel,
     "tree-of-life": tree_of_life_channel,
 }

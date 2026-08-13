@@ -41,6 +41,7 @@ from .shots import (
     to_ltx_shots,
 )
 from .storage import R2Store
+from .uploads import UploadsSync
 
 __all__ = [
     "ALLOWED_LICENSES",

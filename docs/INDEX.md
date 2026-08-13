@@ -20,6 +20,7 @@ what is true.
 | **AUDIT.md** | Live vs legacy, wiring gaps, collisions, security |
 | **ARCHITECTURE.md** | System design, truth rules, module map |
 | **PROGRESS.md** | Status of everything built + fixes |
+| **STRATEGY.md** | **The four content pillars** (Prehistoric Earth, Deep Ocean, History, Exoplanets) + launch priority |
 | **MVP.md** | The 32-phase evidence-to-media MVP plan + commit ladder (01–20 done) |
 | **THESIS.md** | The original Evidence World Engine thesis (canonical guide) |
 | **DATA.md** | Data availability per API, mass-import strategy, graph schema |
