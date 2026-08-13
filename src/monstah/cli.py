@@ -35,12 +35,21 @@ def _cmd_run(args: argparse.Namespace) -> None:
     from .core.models import Reference
     from .pipeline import run_candidate, save_to_r2
 
+    def mk(key, name, region, diet, **gp):
+        t = Taxon(
+            ref=Reference(namespace="pbdb", key=key),
+            name=name, min_ma=66.0, max_ma=68.0, env={"land"}, diet=diet, region=region,
+        )
+        t.set_evidence("mass_kg", gp.pop("mass_kg", 2000), unit="kg")
+        for k, v in gp.items():
+            t.set_game_proxy(k, v, source="demo")
+        return t
+
     taxa = [
-        Taxon(ref=Reference(namespace="pbdb", key="1"), name="Tyrannosaurus rex", min_ma=66.0, max_ma=68.0, env={"land"}, diet="carnivore", traits={"mass_kg": 7000, "speed": 10, "armor_class": 13, "hit_points": 70, "attack_bonus": 11, "damage_dice": "4d12+7"}),
-        Taxon(ref=Reference(namespace="pbdb", key="2"), name="Triceratops", min_ma=66.0, max_ma=68.0, env={"land"}, diet="herbivore", traits={"mass_kg": 6000, "speed": 9, "armor_class": 15, "hit_points": 85, "attack_bonus": 9, "damage_dice": "3d8+6"}),
-        Taxon(ref=Reference(namespace="pbdb", key="3"), name="Mosasaurus", min_ma=66.0, max_ma=72.0, env={"sea"}, diet="carnivore", traits={"mass_kg": 12000, "speed": 12, "armor_class": 14, "hit_points": 100, "attack_bonus": 12, "damage_dice": "4d10+8"}),
-        Taxon(ref=Reference(namespace="pbdb", key="4"), name="Ankylosaurus", min_ma=66.0, max_ma=68.0, env={"land"}, diet="herbivore", traits={"mass_kg": 5000, "speed": 8, "armor_class": 19, "hit_points": 90, "attack_bonus": 8, "damage_dice": "3d10+6"}),
-        Taxon(ref=Reference(namespace="pbdb", key="5"), name="Velociraptor", min_ma=70.0, max_ma=75.0, env={"land"}, diet="carnivore", traits={"mass_kg": 15, "speed": 14, "armor_class": 12, "hit_points": 20, "attack_bonus": 8, "damage_dice": "2d6+4"}),
+        mk("1", "Tyrannosaurus rex", "Hell Creek", "carnivore", mass_kg=7000, armor_class=13, hit_points=70, attack_bonus=11, damage_dice="4d12+7", speed=10),
+        mk("2", "Triceratops", "Hell Creek", "herbivore", mass_kg=6000, armor_class=15, hit_points=85, attack_bonus=9, damage_dice="3d8+6", speed=9),
+        mk("3", "Mosasaurus", "Western Interior Seaway", "carnivore", mass_kg=12000, armor_class=14, hit_points=100, attack_bonus=12, damage_dice="4d10+8", speed=12),
+        mk("4", "Ankylosaurus", "Hell Creek", "herbivore", mass_kg=5000, armor_class=19, hit_points=90, attack_bonus=8, damage_dice="3d10+6", speed=8),
     ]
     by_ref = {t.ref.key: t for t in taxa}
     cands = ScenarioDiscovery(taxa).generate(args.top_n)
@@ -49,6 +58,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
         print(f"\n=== {out.story.title} ===")
         print(f"  overlap: {out.overlap.summary()}  valid={out.overlap.valid_historical}")
         print(f"  outcomes: {out.mc.outcomes}")
+        print(f"  selected runs: {out.mc.selected}")
         print(f"  significance: {out.significance.score} {out.significance.signals}")
         if args.r2:
             key = save_to_r2(out)

@@ -11,11 +11,13 @@ from __future__ import annotations
 
 from .base import Channel, ChannelManifest, EvidenceAdapter
 from .deepblue import DeepBlueAdapter, deepblue_channel
+from .livingplanet import LivingPlanetAdapter, LivingPlanetChannel, living_planet_channel
 from .prehistoric import PrehistoricAdapter, prehistoric_channel
 
 _CHANNELS = {
     "prehistoric": prehistoric_channel,
     "deep-blue": deepblue_channel,
+    "living-planet": living_planet_channel,
 }
 
 
@@ -34,9 +36,12 @@ __all__ = [
     "ChannelManifest",
     "DeepBlueAdapter",
     "EvidenceAdapter",
+    "LivingPlanetAdapter",
+    "LivingPlanetChannel",
     "PrehistoricAdapter",
     "deepblue_channel",
     "get_channel",
     "list_channels",
+    "living_planet_channel",
     "prehistoric_channel",
 ]
