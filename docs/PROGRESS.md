@@ -112,9 +112,19 @@ offline adapters + a durable-store persistence check. Run with
   - 09 immutable CanonicalAsset registry + content hashes (`assets/canonical.py`).
   - 10 StoreManager persistence (DuckDB always + optional Postgres + R2) wired into publish.
   - 11 immutable ScenarioManifest + digest (`scenarios/manifest.py`).
-- Next: 12+ (SimulationModel classes, claim-aware StoryBeat, executable EpisodeSpec,
-  ShotSpec v2, ControlPlanner, QA layers, Retake, EpisodeAssembler, `monstah produce`).
+- **Commits 12–20: DONE.**
+  - 12-13 SimulationModel classes (`simulations/model.py`): GAME_PROXY/MECHANISTIC/
+    STATISTICAL/GRAPH/NO_SIM; full SimulationRun with run/scenario/model/seed/events/outcome.
+  - 14 claim-aware StoryBeat (`story/beats.py`): beats can never blur evidence vs prediction.
+  - 15 executable EpisodeSpec (`story/episode.py`): the only input to the media compiler.
+  - 16 deterministic ScientificRenderer (`media/scientific_renderer.py`): SVG timelines,
+    range charts, occurrence plots, confidence diagrams, evidence cards.
+  - 17 ShotSpec v2 (`media/shot_spec2.py`): basis binds assertions/reconstructions/events.
+  - 18 ControlPlanner + 19 control-frame compositor (`media/control.py`): first/last plates.
+  - 20 renderers (`media/renderer.py`): LTX25ApiRenderer contract + OfflineRenderer.
+- Next: 21+ (QA layers, Retake loop, narration compilation, EpisodeAssembler,
+  `monstah produce`).
 
-## Tests (44, offline, fast)
+## Tests (53, offline, fast)
 `test_truth` · `test_montecarlo` · `test_historical` · `test_channels` · `test_media` ·
 `test_assets` · `test_evidence` · `test_world` · `test_mvp`.
