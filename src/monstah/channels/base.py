@@ -253,10 +253,39 @@ class Channel:
             shots=shots,
         )
 
-    # -- render step: story + shots, then store ------------------------
+    # -- render step: story + shots -> LTX, then store ----------------
     def render(self, output: PipelineOutput) -> PipelineOutput:
         output.story = _apply_mode_label(output.story, self.narrative.label(self.mode, output.overlap))
+        output.bundle = self._ltx_bundle(output)
         return output
+
+    def _ltx_bundle(self, output: PipelineOutput):
+        """Convert compiled shots into render-ready LTX ShotSpecs."""
+        from ..media import Project, RendererManifest, ShotBundle, to_ltx_shots
+
+        ltx_shots = to_ltx_shots(output.shots, project=Project.MONSTAH, mode=output.candidate.mode)
+        manifest = RendererManifest(
+            renderer_family="ltx",
+            renderer_version="2.3",
+            backend="comfyui",
+            model_variant="ltx-2-3-fast",
+        )
+        return ShotBundle(project=self.theme, manifest=manifest, shots=ltx_shots)
+
+    def publish(self, output: PipelineOutput, store=None) -> str:
+        """Persist the render bundle + story to R2 as canonical output."""
+        import json
+
+        from ..media.storage import R2Store
+
+        store = store or R2Store(prefix=f"canonical/channels/{self.theme}")
+        payload = {
+            "story": output.story.render(),
+            "overlap": output.overlap.__dict__,
+            "shots": output.bundle.to_dict() if hasattr(output.bundle, "to_dict") else output.bundle,
+        }
+        key = f"{'_'.join(e.key for e in output.candidate.entities)}/{output.candidate.template}.json"
+        return store.put_bytes(key, json.dumps(payload, indent=2).encode(), content_type="application/json")
 
     @property
     def theme(self) -> str:
@@ -291,4 +320,6 @@ class _CombatSimulation(SimulationPolicy):
 def _apply_mode_label(story, label: str):
     from dataclasses import replace
 
+    if not hasattr(story, "conclusion"):
+        return story
     return replace(story, conclusion=f"[{label}]\n" + (story.conclusion or ""))

@@ -1,8 +1,9 @@
-"""Shot compiler (§36) and asset architecture (§37).
+"""Shot compiler (§36) and LTX bindings (§37, LTX production pack).
 
-Converts canonical events into media instructions. The video model never gets
-to invent outcomes the simulation didn't produce — shots are constrained by
-canonical event records and versioned entity/environment assets.
+Converts canonical events into LTX ShotSpecs. The video model never gets to
+invent outcomes the simulation didn't produce — every shot carries the
+epistemic `canonicality` from the truth layer and explicit constraints/QA so
+LTX cannot silently add facts.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..core.models import Shot
+from .ltx import Canonicality, ControlMode, Project, ShotSpec as LtxShotSpec
 
 
 @dataclass
@@ -24,6 +26,8 @@ class EntityVersion:
 
 @dataclass
 class ShotSpec:
+    """Pipeline-level shot: an ordered canonical event bound to versions."""
+
     index: int
     entities: list[EntityVersion] = field(default_factory=list)
     environment: str = ""
@@ -45,6 +49,35 @@ class ShotSpec:
                 "constraints": self.constraints,
             },
             duration=self.duration,
+        )
+
+    def to_ltx(
+        self,
+        *,
+        project: Project = Project.MONSTAH,
+        canonicality: Canonicality = Canonicality.RECONSTRUCTION,
+        prompt: str = "",
+        aspect_ratio: str = "16:9",
+    ) -> LtxShotSpec:
+        entity_versions = []
+        for e in self.entities:
+            if isinstance(e, dict):
+                entity_versions.append(f"{e.get('entity')}:{e.get('version', '')}")
+            else:
+                entity_versions.append(f"{e.entity}:{e.version}")
+        return LtxShotSpec(
+            shot_id=f"{project.value}-{self.index:03d}",
+            project=project,
+            canonicality=canonicality,
+            entity_versions=entity_versions,
+            environment_version=self.environment or None,
+            event_ids=[self.event] if self.event else [],
+            prompt=prompt or f"A {self.camera} shot of the canonical event {self.event or 'reconstruction'}.",
+            duration_s=self.duration,
+            aspect_ratio=aspect_ratio,
+            control_mode=ControlMode.I2V if entity_versions else ControlMode.T2V,
+            camera={"style": self.camera},
+            constraints=self.constraints,
         )
 
 
@@ -78,3 +111,23 @@ def compile_shots(
             )
         )
     return shots
+
+
+def canonicality_for_mode(mode: str) -> Canonicality:
+    """Map the pipeline truth layer to an LTX canonicality label."""
+    if mode == "historical":
+        return Canonicality.CANONICAL_EVENT
+    if mode == "lab":
+        return Canonicality.COUNTERFACTUAL
+    return Canonicality.RECONSTRUCTION
+
+
+def to_ltx_shots(
+    shots: list[ShotSpec],
+    *,
+    project: Project = Project.MONSTAH,
+    mode: str = "historical",
+) -> list[LtxShotSpec]:
+    """Convert compiled shots into render-ready LTX ShotSpecs."""
+    canonicality = canonicality_for_mode(mode)
+    return [s.to_ltx(project=project, canonicality=canonicality) for s in shots]

@@ -98,8 +98,13 @@ def _cmd_channel(args: argparse.Namespace) -> int:
     print(f"discovered {len(cands)} candidates\n")
     for cand in cands:
         out = ch.produce(cand, by_ref)
+        ch.render(out)
         print(f"  [{out.significance.score:.2f}] {out.story.title}")
         print(f"      outcomes: {out.mc.outcomes}  valid_historical={out.overlap.valid_historical}")
+        print(f"      ltx shots: {len(out.bundle.shots)}  canonicality={out.bundle.shots[0].canonicality.value if out.bundle.shots else 'n/a'}")
+        if args.r2:
+            key = ch.publish(out)
+            print(f"      published -> r2:{key}")
     return 0
 
 
@@ -116,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--taxa", type=int, default=40)
     c.add_argument("--top-n", type=int, default=5, dest="top_n")
     c.add_argument("--runs", type=int, default=1000, dest="runs")
+    c.add_argument("--r2", action="store_true", help="publish render bundles to R2")
     c.set_defaults(func=_cmd_channel)
 
     i = sub.add_parser("ingest", help="ingest taxa from PBDB + Macrostrat")

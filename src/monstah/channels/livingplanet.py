@@ -53,6 +53,8 @@ class LivingPlanetChannel(Channel):
         self._adapter = adapter
 
     def produce_graph(self, candidate: Candidate, taxa_by_ref: dict[str, Taxon], overlap=None):
+        from ..narrative import EpisodeSpec
+
         a = taxa_by_ref[candidate.entities[0].key]
         b = taxa_by_ref[candidate.entities[1].key]
         # query the real interaction edge for the story
@@ -65,16 +67,14 @@ class LivingPlanetChannel(Channel):
             f"{len(edges)} real GloBI interaction records for {a.name}; "
             f"temporal/species co-occurrence: {overlap.summary() if overlap else 'n/a'}."
         )
-        story = type(
-            "Ep", (), {
-                "title": f"{a.name} in the marine food web",
-                "scenario_id": candidate.template, "channel": self.theme,
-                "hook": f"What does {a.name} actually interact with?",
-                "evidence": evidence,
-                "conclusion": "Graph story from GloBI interaction edges; no battle simulation.",
-                "render": lambda: evidence,
-            }
-        )()
+        story = EpisodeSpec(
+            title=f"{a.name} in the marine food web",
+            scenario_id=candidate.template,
+            channel=self.theme,
+            hook=f"What does {a.name} actually interact with?",
+            evidence=evidence,
+            conclusion="Graph story from GloBI interaction edges; no battle simulation.",
+        )
         out = super().produce_graph(candidate, taxa_by_ref, overlap)
         out.story = story
         return out

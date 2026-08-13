@@ -1,0 +1,16 @@
+{
+  "renderer_family": "ltx",
+  "renderer_version": "2.3",
+  "backend": "comfyui|api|local-pipeline",
+  "model_variant": "ltx-2-3-fast|ltx-2-3-pro|local-checkpoint",
+  "checkpoint_digest": "",
+  "workflow_id": "",
+  "workflow_version": "",
+  "seed": 0,
+  "prompt_enhancement": false,
+  "output": {
+    "resolution": "1920x1080",
+    "fps": 24,
+    "generate_audio": true
+  }
+}

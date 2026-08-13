@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LTX ShotSpec",
+  "type": "object",
+  "required": [
+    "shot_id",
+    "project",
+    "canonicality",
+    "prompt",
+    "duration_s",
+    "aspect_ratio",
+    "constraints"
+  ],
+  "properties": {
+    "shot_id": {
+      "type": "string"
+    },
+    "project": {
+      "enum": [
+        "robobladez",
+        "monstah",
+        "other"
+      ]
+    },
+    "canonicality": {
+      "enum": [
+        "CANONICAL_EVENT",
+        "RECONSTRUCTION",
+        "NARRATIVE_PROJECTION",
+        "COUNTERFACTUAL"
+      ]
+    },
+    "entity_versions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "environment_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "event_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "prompt": {
+      "type": "string"
+    },
+    "negative_prompt": {
+      "type": "string"
+    },
+    "duration_s": {
+      "type": "number"
+    },
+    "fps": {
+      "type": "integer",
+      "default": 24
+    },
+    "aspect_ratio": {
+      "enum": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:5",
+        "5:4"
+      ]
+    },
+    "audio": {
+      "type": "object"
+    },
+    "camera": {
+      "type": "object"
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "control_mode": {
+      "enum": [
+        "T2V",
+        "I2V",
+        "FIRST_LAST",
+        "KEYFRAME",
+        "ICLORA",
+        "RETAKE",
+        "EXTEND"
+      ]
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "qa": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

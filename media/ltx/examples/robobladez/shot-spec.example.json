@@ -1,0 +1,29 @@
+{
+  "shot_id": "rbz-match-027-impact-01",
+  "project": "robobladez",
+  "canonicality": "CANONICAL_EVENT",
+  "entity_versions": [
+    "boris:talisman:R17",
+    "morty:talisman:R12"
+  ],
+  "environment_version": "arena:season-01:R3",
+  "event_ids": [
+    "match027:event184"
+  ],
+  "prompt": "A low tracking shot follows two fictional spinning-top competitors circling across an illuminated virtual arena. Boris holds the inner line while Morty cuts inward from the outer ring. The camera stays just above arena height and pans smoothly with Boris, preserving both competitors in frame. At the specified collision they strike once, separate immediately, Boris remains near center and Morty moves outward. Cold overhead light reflects across the floor. Audio: a rising mechanical hum, one sharp synthetic impact exactly at contact, then arena ambience.",
+  "duration_s": 6,
+  "fps": 24,
+  "aspect_ratio": "16:9",
+  "control_mode": "KEYFRAME",
+  "constraints": [
+    "exactly one canonical contact",
+    "Boris remains closer to center after contact",
+    "Morty moves outward after contact",
+    "no additional competitors appear"
+  ],
+  "qa": [
+    "winner/outcome not contradicted",
+    "event ordering matches replay",
+    "identity refs preserved"
+  ]
+}
