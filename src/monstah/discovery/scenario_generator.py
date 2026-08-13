@@ -14,6 +14,7 @@ from typing import Any, Iterable
 
 from ..core.models import Reference
 from ..core.truth import Layer, TaxonFacts, TypedValue
+from ..narrative.novelty import NoveltyScorer
 
 SCENARIO_TYPES = (
     "predation",
@@ -94,8 +95,9 @@ class ScenarioDiscovery:
         "recognizability": 0.10,
     }
 
-    def __init__(self, taxa: Iterable[Taxon]) -> None:
+    def __init__(self, taxa: Iterable[Taxon], novelty: NoveltyScorer | None = None) -> None:
         self.taxa = list(taxa)
+        self._novelty = novelty or NoveltyScorer()
 
     def temporal_overlap(self, a: Taxon, b: Taxon) -> float:
         # living taxa (both at the present) always coexist in time
@@ -132,7 +134,8 @@ class ScenarioDiscovery:
         return min(1.0, (len(a.name) + len(b.name)) / 40.0)
 
     def novelty(self, a: Taxon, b: Taxon) -> float:
-        return 0.5  # placeholder; real value comes from scenario history
+        tpl = "competition" if (a.diet == b.diet) else "predation"
+        return self._novelty.score(tpl, [a.ref, b.ref])
 
     def score_pair(self, a: Taxon, b: Taxon) -> Candidate | None:
         to = self.temporal_overlap(a, b)

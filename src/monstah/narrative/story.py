@@ -74,6 +74,7 @@ def compile_story(
     crux: str,
     uncertainty_note: str,
     channel: str = "",
+    narrative_claims: list[NarrativeClaim] | None = None,
 ) -> EpisodeSpec:
     """Assemble a narrative from pipeline outputs. Never asserts facts beyond
     what the simulation/evidence establishes."""
@@ -98,4 +99,5 @@ def compile_story(
         crux=crux,
         uncertainty=uncertainty_note,
         conclusion=conclusion,
+        narrative_claims=narrative_claims or [],
     )

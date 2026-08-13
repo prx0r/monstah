@@ -26,8 +26,9 @@ TAXA = [
 
 
 class LivingPlanetAdapter(EvidenceAdapter):
-    def __init__(self, *, cache_dir: str | None = None) -> None:
-        self.globi = GlobiClient(cache_dir=cache_dir)
+    def __init__(self, *, cache_dir: str | None = None, offline: bool = False) -> None:
+        self.globi = None if offline else GlobiClient(cache_dir=cache_dir)
+        self.offline = offline
 
     def load_taxa(self, limit: int = 20) -> list[Taxon]:
         out: list[Taxon] = []
@@ -59,10 +60,11 @@ class LivingPlanetChannel(Channel):
         b = taxa_by_ref[candidate.entities[1].key]
         # query the real interaction edge for the story
         edges = []
-        try:
-            edges = self._adapter.globi.interactions(a.facts.evidence.get("scientific_name").value, limit=10)
-        except Exception:
-            edges = []
+        if not self._adapter.offline:
+            try:
+                edges = self._adapter.globi.interactions(a.facts.evidence.get("scientific_name").value, limit=10)
+            except Exception:
+                edges = []
         evidence = (
             f"{len(edges)} real GloBI interaction records for {a.name}; "
             f"temporal/species co-occurrence: {overlap.summary() if overlap else 'n/a'}."
@@ -80,10 +82,10 @@ class LivingPlanetChannel(Channel):
         return out
 
 
-def living_planet_channel(*, n_runs: int = 1000) -> "Channel":
+def living_planet_channel(*, n_runs: int = 1000, offline: bool = False) -> "Channel":
     manifest = ChannelManifest(
         name="living-planet",
         title="Living Planet",
         description="Ecology graph stories via GloBI interaction edges (non-combat)",
     )
-    return LivingPlanetChannel(manifest, LivingPlanetAdapter(), mode="historical", n_runs=n_runs)
+    return LivingPlanetChannel(manifest, LivingPlanetAdapter(offline=offline), mode="historical", n_runs=n_runs)

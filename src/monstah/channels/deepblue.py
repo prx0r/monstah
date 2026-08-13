@@ -29,9 +29,10 @@ MARINE = {
 
 
 class DeepBlueAdapter(EvidenceAdapter):
-    def __init__(self, *, cache_dir: str | None = None, depth_min: int = 0, depth_max: int = 12000) -> None:
-        self.obis = ObisClient(cache_dir=cache_dir)
-        self.open5e = Open5eClient(cache_dir=cache_dir)
+    def __init__(self, *, cache_dir: str | None = None, depth_min: int = 0, depth_max: int = 12000, offline: bool = False) -> None:
+        self.obis = None if offline else ObisClient(cache_dir=cache_dir)
+        self.open5e = None if offline else Open5eClient(cache_dir=cache_dir)
+        self.offline = offline
         self.depth_min = depth_min
         self.depth_max = depth_max
 
@@ -40,7 +41,9 @@ class DeepBlueAdapter(EvidenceAdapter):
         names = list(MARINE.keys())[:limit]
         for scientific in names:
             label, slug = MARINE[scientific]
-            evidence = self._obis_evidence(scientific)
+            evidence = self._obis_evidence(scientific) if not self.offline else {
+                "observed": 10, "min_depth": 0, "max_depth": 0, "mass_kg": 500.0,
+            }
             t = Taxon(
                 ref=Reference(namespace="worms", key=scientific.lower().replace(" ", "-")),
                 name=label,
@@ -100,6 +103,8 @@ class DeepBlueAdapter(EvidenceAdapter):
                            constraints={"depth_m": md, "light": "aphotic" if md >= 200 else "photic"})
 
     def _combat_proxy(self, slug: str) -> dict:
+        if self.offline or self.open5e is None:
+            return {"armor_class": 13, "hit_points": 100, "attack_bonus": 10, "damage_dice": "3d10+6", "speed": 10.0}
         try:
             mon = self.open5e.monster(slug)
             if mon:
@@ -118,7 +123,7 @@ class DeepBlueAdapter(EvidenceAdapter):
         return {"armor_class": 13, "hit_points": 100, "attack_bonus": 10, "damage_dice": "3d10+6", "speed": 10.0}
 
 
-def deepblue_channel(*, n_runs: int = 1000) -> "Channel":
+def deepblue_channel(*, n_runs: int = 1000, offline: bool = False) -> "Channel":
     from .base import Channel, ChannelManifest
 
     manifest = ChannelManifest(
@@ -126,4 +131,4 @@ def deepblue_channel(*, n_runs: int = 1000) -> "Channel":
         title="Deep Blue",
         description="Data-led modern ocean reconstruction via OBIS occurrences",
     )
-    return Channel(manifest, DeepBlueAdapter(), mode="historical", n_runs=n_runs)
+    return Channel(manifest, DeepBlueAdapter(offline=offline), mode="historical", n_runs=n_runs)

@@ -107,13 +107,12 @@ def run_candidate(
         outcome_dist=mc.outcomes,
         crux="The dominant variable governing outcome is the attack-vs-AC balance.",
         uncertainty_note="Results are conditional on reconstruction assumptions; see provenance.",
+        narrative_claims=_evidence_claims(a, b, attacker, defender),
     )
-    # SIMULATION -> EVENT -> STORY -> SHOT: the event log is emitted by the run
-    event_log = [
-        {"t": 0.0, "actor": attacker.name, "action": "OPENING"},
-        {"t": 0.5, "actor": attacker.name, "action": "CHASE"},
-        {"t": 3.0, "actor": attacker.name, "action": "ENGAGE"},
-    ]
+    # SIMULATION -> EVENT -> STORY -> SHOT: emit the canonical event log of the
+    # representative selected run (real events, never fabricated)
+    rep_idx = mc.selected.get("representative", 0)
+    event_log = _run_events(attacker, defender, mc, rep_idx)
     env_key = environment.id if environment is not None else ""
     shots = compile_shots(
         entity_versions=[
@@ -124,6 +123,32 @@ def run_candidate(
         event_log=event_log,
     )
     return PipelineOutput(candidate=candidate, overlap=overlap, mc=mc, significance=significance, story=story, shots=shots)
+
+
+def _run_events(attacker, defender, mc, run_index: int) -> list[dict]:
+    """Emit the canonical event log of a specific simulation run."""
+    from .simulations import run_duel_events, run_rng
+
+    return run_duel_events(attacker, defender, run_rng(mc.master_seed, run_index), n_rounds=mc.n_rounds)
+
+
+def _evidence_claims(a, b, attacker, defender) -> list:
+    """Build provenance-bearing narrative claims from each side's evidence."""
+    from .narrative import NarrativeClaim
+
+    claims = []
+    for label, taxon in (("attacker", a), ("defender", b)):
+        for trait, tv in list(taxon.facts.evidence.items())[:2]:
+            claims.append(
+                NarrativeClaim(
+                    text=f"{taxon.name} {trait} ≈ {tv.value}",
+                    claim_id=f"{taxon.ref.key}:{trait}",
+                    assertion_ids=[f"{taxon.ref.key}:{trait}"],
+                    source_ids=[taxon.ref.namespace],
+                    status=tv.status,
+                )
+            )
+    return claims
 
 
 def _combatant(t: Taxon) -> Combatant:

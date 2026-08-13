@@ -33,8 +33,9 @@ STATBLOCK_SLUGS = {
 
 
 class PrehistoricAdapter(EvidenceAdapter):
-    def __init__(self, *, cache_dir: str | None = None) -> None:
-        self.open5e = Open5eClient(cache_dir=cache_dir)
+    def __init__(self, *, cache_dir: str | None = None, offline: bool = False) -> None:
+        self.open5e = None if offline else Open5eClient(cache_dir=cache_dir)
+        self.offline = offline
         self._envs = {e["name"]: e for e in seed_environments()}
 
     def load_taxa(self, limit: int = 50) -> list[Taxon]:
@@ -89,6 +90,8 @@ class PrehistoricAdapter(EvidenceAdapter):
         return None
 
     def _combat_proxy(self, name: str) -> dict:
+        if self.offline or self.open5e is None:
+            return _derive_combat(name)
         slug = STATBLOCK_SLUGS.get(name)
         if slug:
             try:
@@ -118,7 +121,7 @@ def _derive_combat(name: str) -> dict:
     return {"armor_class": 12, "hit_points": 60, "attack_bonus": 7, "damage_dice": "2d8+4", "speed": 9.0}
 
 
-def prehistoric_channel(*, n_runs: int = 1000) -> "Channel":
+def prehistoric_channel(*, n_runs: int = 1000, offline: bool = False) -> "Channel":
     from .base import Channel, ChannelManifest
 
     manifest = ChannelManifest(
@@ -126,4 +129,4 @@ def prehistoric_channel(*, n_runs: int = 1000) -> "Channel":
         title="Prehistoric Worlds",
         description="Extinct-world reconstruction via PBDB/Macrostrat/Open5e statblocks",
     )
-    return Channel(manifest, PrehistoricAdapter(), mode="historical", n_runs=n_runs)
+    return Channel(manifest, PrehistoricAdapter(offline=offline), mode="historical", n_runs=n_runs)

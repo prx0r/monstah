@@ -137,3 +137,46 @@ def resolve_duel(
     damage[hit] = dmg[hit]
     hp = defender.hit_points - np.cumsum(damage)
     return hp
+
+
+def run_duel_events(
+    attacker: Combatant,
+    defender: Combatant,
+    rng: np.random.Generator,
+    *,
+    n_rounds: int = 5,
+) -> list[dict]:
+    """Emit the canonical event log of one duel (real sim events, not fabricated).
+
+    Returns per-round events: hits/misses with damage and HP, plus the resolved
+    outcome. This is the SIMULATION -> EVENT link the shot graph consumes.
+    """
+    events: list[dict] = []
+    hp = defender.hit_points
+    for r in range(n_rounds):
+        hit = attack_roll(rng, attacker.attack_bonus, defender.armor_class, 1)[0]
+        if hit:
+            dmg = int(damage_vec(rng, attacker.damage_dice, 1)[0])
+            hp = max(0, hp - dmg)
+            events.append(
+                {
+                    "t": float(r),
+                    "actor": attacker.name,
+                    "action": "ATTACK",
+                    "detail": f"hits {defender.name} for {dmg} (hp {hp})",
+                }
+            )
+        else:
+            events.append(
+                {"t": float(r), "actor": attacker.name, "action": "ATTACK", "detail": f"misses {defender.name}"}
+            )
+        if hp <= 0:
+            events.append(
+                {"t": float(r + 0.5), "actor": attacker.name, "action": "FEED", "detail": f"{defender.name} defeated"}
+            )
+            break
+    if hp > 0:
+        events.append(
+            {"t": float(n_rounds), "actor": "system", "action": "DISENGAGE", "detail": f"{defender.name} survives"}
+        )
+    return events

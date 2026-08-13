@@ -92,3 +92,30 @@ class R2Store:
     def delete(self, name: str) -> None:
         key = self._key(name)
         self._client.delete_object(Bucket=self.cfg.bucket, Key=key)
+
+
+class AssetStore(R2Store):
+    """R2 layout for the canonical asset library:
+
+        assets/source/<provider>/...         (downloaded licensed source images)
+        assets/entities/<entity-id>/references/
+        assets/entities/<entity-id>/reconstructions/
+        assets/environments/<env-id>/
+    """
+
+    def __init__(self, config: R2Config | None = None) -> None:
+        super().__init__(config, prefix="assets")
+
+    def put_source_image(self, provider: str, provider_id: str, data: bytes) -> str:
+        return self.put_bytes(f"source/{provider}/{provider_id}", data, content_type="image/jpeg")
+
+    def put_reference(self, entity_id: str, file_name: str, data: bytes) -> str:
+        return self.put_bytes(f"entities/{entity_id}/references/{file_name}", data, content_type="image/jpeg")
+
+    def put_reconstruction(self, entity_id: str, version: str, data: bytes) -> str:
+        return self.put_bytes(
+            f"entities/{entity_id}/reconstructions/{entity_id}_{version}.png", data, content_type="image/png"
+        )
+
+    def put_environment(self, env_id: str, file_name: str, data: bytes) -> str:
+        return self.put_bytes(f"environments/{env_id}/{file_name}", data, content_type="image/jpeg")

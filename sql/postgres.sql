@@ -179,6 +179,70 @@ CREATE TABLE IF NOT EXISTS assets (
     provenance JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
+-- Asset / image library -------------------------------------------------------
+CREATE TABLE IF NOT EXISTS asset_sources (
+    id            TEXT PRIMARY KEY,
+    provider      TEXT NOT NULL,          -- gbif | inaturalist | wikimedia | bhl
+    provider_id   TEXT NOT NULL,
+    entity_id     TEXT REFERENCES entities(id),
+    original_uri  TEXT,
+    preview_uri   TEXT,
+    creator       TEXT,
+    source_url    TEXT,
+    width         INT,
+    height        INT,
+    role          TEXT,                   -- OBSERVATIONAL_REFERENCE | FOSSIL_REFERENCE | ...
+    epistemic_status TEXT,                -- OBSERVED_PHOTOGRAPH | HISTORICAL_ILLUSTRATION | ...
+    score         DOUBLE PRECISION
+);
+
+CREATE TABLE IF NOT EXISTS asset_licenses (
+    asset_source_id TEXT PRIMARY KEY REFERENCES asset_sources(id),
+    license         TEXT NOT NULL,
+    tier            TEXT NOT NULL,        -- ALLOW | REVIEW | REJECT
+    attribution     TEXT,
+    verified_at     TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS asset_entity_links (
+    asset_source_id TEXT NOT NULL REFERENCES asset_sources(id),
+    entity_id       TEXT NOT NULL REFERENCES entities(id),
+    role            TEXT NOT NULL,
+    PRIMARY KEY (asset_source_id, entity_id, role)
+);
+
+CREATE TABLE IF NOT EXISTS asset_embeddings (
+    asset_source_id TEXT PRIMARY KEY REFERENCES asset_sources(id),
+    model           TEXT,
+    vector          DOUBLE PRECISION[]
+);
+
+CREATE TABLE IF NOT EXISTS asset_reviews (
+    id              TEXT PRIMARY KEY,
+    asset_source_id TEXT REFERENCES asset_sources(id),
+    reviewer        TEXT,
+    verdict         TEXT,                 -- APPROVED | REJECTED | REVISION
+    note            TEXT,
+    reviewed_at     TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS visual_reconstructions (
+    id                TEXT PRIMARY KEY,
+    entity_id         TEXT NOT NULL REFERENCES entities(id),
+    version           TEXT NOT NULL,       -- TREX_VISUAL_R17
+    role              TEXT,
+    image_uri         TEXT,
+    evidence_refs     TEXT[],
+    supersedes        TEXT,
+    UNIQUE (entity_id, version)
+);
+
+CREATE TABLE IF NOT EXISTS visual_reconstruction_assets (
+    visual_reconstruction_id TEXT NOT NULL REFERENCES visual_reconstructions(id),
+    asset_source_id          TEXT NOT NULL REFERENCES asset_sources(id),
+    PRIMARY KEY (visual_reconstruction_id, asset_source_id)
+);
+
 -- Episodes (channel output) --------------------------------------------------
 CREATE TABLE IF NOT EXISTS episodes (
     id         TEXT PRIMARY KEY,

@@ -27,6 +27,9 @@ from typing import Any
 from ..core.models import Entity, Environment, Reference
 from ..core.truth import Layer, TaxonFacts, TypedValue
 from ..discovery import Candidate, OverlapResult, ScenarioDiscovery, Taxon, check_historical_overlap
+from ..evidence.builder import assertions_from_facts, build_reconstruction, source_from
+from ..evidence.models import Reconstruction, Source
+from ..narrative.novelty import NoveltyScorer
 from ..pipeline import PipelineOutput, run_candidate
 from ..simulations import Combatant
 
@@ -43,6 +46,8 @@ class ChannelManifest:
     environments: dict[str, Environment] = field(default_factory=dict)
     versions: dict[str, str] = field(default_factory=dict)  # entity -> reconstruction version
     asset_uris: dict[str, str] = field(default_factory=dict)  # entity -> R2 asset uri
+    sources: dict[str, Source] = field(default_factory=dict)
+    reconstructions: dict[str, Reconstruction] = field(default_factory=dict)
 
 
 # --- evidence ---------------------------------------------------------------
@@ -127,8 +132,16 @@ class MediaPolicy(ABC):
 
 
 class DiscoveryPolicy(ABC):
+    def __init__(self) -> None:
+        self.novelty = NoveltyScorer()
+
     def discover(self, taxa: list[Taxon], top_n: int = 10) -> list[Candidate]:
-        return ScenarioDiscovery(taxa).generate(top_n)
+        sd = ScenarioDiscovery(taxa, novelty=self.novelty)
+        cands = sd.generate(top_n)
+        return cands
+
+    def commit(self, template: str, entities: list[Reference]) -> None:
+        self.novelty.commit(template, entities)
 
 
 # --- channel ----------------------------------------------------------------
@@ -160,14 +173,39 @@ class Channel:
         self.mode = mode
         self.n_runs = n_runs
         self._envs = {e.id: e for e in adapter.environments()}
+        self._analytics = None  # lazily created DuckStore
+
+    def _get_analytics(self):
+        from ..data.duck import DuckStore
+
+        if self._analytics is None:
+            self._analytics = DuckStore()
+        return self._analytics
 
     # -- evidence step: build the graph -------------------------------
     def ingest(self, limit: int = 50) -> list[Taxon]:
         taxa = self.adapter.load_taxa(limit=limit)
         for t in taxa:
+            src = source_from(
+                t.ref.namespace,
+                t.ref.key,
+                type="evidence_record",
+                title=t.name,
+            )
+            self.manifest.sources[t.ref.key] = src
+            # versioned reconstruction from evidence + labeled game-proxy
+            rec = build_reconstruction(t.ref, t.facts, src, version="R1")
+            self.manifest.reconstructions[t.ref.key] = rec
+            self.manifest.versions[t.ref.key] = rec.version
             self.manifest.entities.setdefault(
                 t.ref.key,
-                Entity(refs=[t.ref], kind="taxon", name=t.name, traits=t.facts.scientific_flat()),
+                Entity(
+                    refs=[t.ref],
+                    kind="taxon",
+                    name=t.name,
+                    traits=t.facts.scientific_flat(),
+                    properties={"reconstruction": rec.version, "assertions": rec.assertions},
+                ),
             )
             self.reconstruction.build(t)
         return taxa
@@ -175,6 +213,22 @@ class Channel:
     # -- discovery step: let the database write the calendar -----------
     def discover(self, taxa: list[Taxon], top_n: int = 10) -> list[Candidate]:
         return self.discovery.discover(taxa, top_n)
+
+    # -- run a candidate through the whole chain -----------------------
+    def run(self, candidate: Candidate, taxa_by_ref: dict[str, Taxon]):
+        out = self.produce(candidate, taxa_by_ref)
+        self.render(out)
+        self.discovery.commit(candidate.template, candidate.entities)
+        self._record(out)
+        return out
+
+    def _record(self, output: PipelineOutput) -> None:
+        """Persist simulation results into the DuckDB analytical store."""
+        store = self._get_analytics()
+        for template, prob in output.mc.outcomes.items():
+            store.register_sim_results(
+                [{"scenario": output.candidate.template, "outcome": template, "probability": prob}]
+            )
 
     # -- truth step: strict validity by mode ----------------------------
     def validate(self, candidate: Candidate, taxa_by_ref: dict[str, Taxon]) -> OverlapResult:
@@ -264,6 +318,7 @@ class Channel:
         from ..media import Project, RendererManifest, ShotBundle, to_ltx_shots
 
         ltx_shots = to_ltx_shots(output.shots, project=Project.MONSTAH, mode=output.candidate.mode)
+        self._attach_references(ltx_shots, output)
         manifest = RendererManifest(
             renderer_family="ltx",
             renderer_version="2.3",
@@ -271,6 +326,35 @@ class Channel:
             model_variant="ltx-2-3-fast",
         )
         return ShotBundle(project=self.theme, manifest=manifest, shots=ltx_shots)
+
+    def _attach_references(self, ltx_shots, output: PipelineOutput) -> None:
+        """Resolve canonical image references for each shot's entities (I2V input).
+
+        Only runs when the adapter is online; offline/simulate keeps prompts pure.
+        """
+        try:
+            if getattr(self.adapter, "offline", False):
+                return
+            from ..media import ImageResolver
+
+            resolver = ImageResolver()
+            try:
+                refs_by_entity: dict[str, list[dict]] = {}
+                for ent in output.candidate.entities:
+                    entity = self.manifest.entities.get(ent.key)
+                    name = entity.name if entity else ent.key
+                    if name not in refs_by_entity:
+                        refs_by_entity[name] = [
+                            {"uri": c.original_uri, "license": c.license, "creator": c.creator}
+                            for c in resolver.best(name, n=3)
+                        ]
+                for shot in ltx_shots:
+                    key = shot.entity_versions[0].split(":")[0] if shot.entity_versions else ""
+                    shot.references = refs_by_entity.get(key, [])
+            finally:
+                resolver.close()
+        except Exception:
+            pass  # asset resolution is best-effort; never blocks rendering
 
     def publish(self, output: PipelineOutput, store=None) -> str:
         """Persist the render bundle + story to R2 as canonical output."""

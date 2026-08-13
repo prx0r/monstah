@@ -97,14 +97,69 @@ def _cmd_channel(args: argparse.Namespace) -> int:
     cands = ch.discover(taxa, top_n=args.top_n)
     print(f"discovered {len(cands)} candidates\n")
     for cand in cands:
-        out = ch.produce(cand, by_ref)
-        ch.render(out)
+        out = ch.run(cand, by_ref)
         print(f"  [{out.significance.score:.2f}] {out.story.title}")
         print(f"      outcomes: {out.mc.outcomes}  valid_historical={out.overlap.valid_historical}")
         print(f"      ltx shots: {len(out.bundle.shots)}  canonicality={out.bundle.shots[0].canonicality.value if out.bundle.shots else 'n/a'}")
         if args.r2:
             key = ch.publish(out)
             print(f"      published -> r2:{key}")
+    return 0
+
+
+def _cmd_simulate(args: argparse.Namespace) -> int:
+    """Full end-to-end stack simulation, fully offline (no LTX, no network).
+
+    Runs: ingest -> evidence build -> discovery -> truth validity -> d20 battle
+    -> Monte Carlo -> significance -> story -> shots -> LTX ShotSpec bundle,
+    then writes the complete episode bundle (story + shots + renderer manifest)
+    to disk, simulating the publish step without calling any renderer.
+    """
+    import json
+    from pathlib import Path
+
+    from .channels import get_channel
+
+    ch = get_channel(args.channel, n_runs=args.runs, offline=True)
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    print(f"## Simulating channel: {ch.theme} (offline, {args.runs} runs)\n")
+
+    taxa = ch.ingest(limit=args.taxa)
+    by_ref = {t.ref.key: t for t in taxa}
+    print(f"step ingest    : {len(taxa)} taxa, {len(ch.manifest.reconstructions)} reconstructions, {len(ch.manifest.sources)} sources")
+    cands = ch.discover(taxa, top_n=args.top_n)
+    print(f"step discovery : {len(cands)} candidates")
+
+    written = 0
+    for cand in cands:
+        out = ch.run(cand, by_ref)
+        payload = {
+            "channel": ch.theme,
+            "candidate": {
+                "template": cand.template,
+                "entities": [f"{e.namespace}:{e.key}" for e in cand.entities],
+                "mode": cand.mode,
+            },
+            "overlap": out.overlap.summary(),
+            "valid_historical": out.overlap.valid_historical,
+            "reconstructions": {
+                k: {"version": r.version, "assertions": len(r.assertions)} for k, r in ch.manifest.reconstructions.items()
+            },
+            "monte_carlo": {"outcomes": out.mc.outcomes, "selected_runs": out.mc.selected, "master_seed": out.mc.master_seed},
+            "significance": {"score": out.significance.score, "signals": out.significance.signals},
+            "story": out.story.render(),
+            "ltx": out.bundle.to_dict(),
+        }
+        stem = "_".join(e.key for e in cand.entities)
+        fp = out_dir / f"{stem}_{cand.template}.json"
+        fp.write_text(json.dumps(payload, indent=2))
+        written += 1
+        print(f"  [{out.significance.score:.2f}] {out.story.title}")
+        print(f"      outcomes={out.mc.outcomes} valid={out.overlap.valid_historical} shots={len(out.bundle.shots)}")
+        print(f"      wrote {fp.name}")
+
+    print(f"\nsimulate complete: {written} episodes -> {out_dir}")
     return 0
 
 
@@ -123,6 +178,14 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--runs", type=int, default=1000, dest="runs")
     c.add_argument("--r2", action="store_true", help="publish render bundles to R2")
     c.set_defaults(func=_cmd_channel)
+
+    sim = sub.add_parser("simulate", help="full offline end-to-end stack simulation")
+    sim.add_argument("channel", help=f"one of: {', '.join(list_channels())}")
+    sim.add_argument("--taxa", type=int, default=40)
+    sim.add_argument("--top-n", type=int, default=5, dest="top_n")
+    sim.add_argument("--runs", type=int, default=1000, dest="runs")
+    sim.add_argument("--out", default="out/simulation", help="output directory")
+    sim.set_defaults(func=_cmd_simulate)
 
     i = sub.add_parser("ingest", help="ingest taxa from PBDB + Macrostrat")
     i.add_argument("taxa", nargs="*")
