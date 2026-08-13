@@ -93,8 +93,20 @@ offline adapters + a durable-store persistence check. Run with
 ## Docs
 `docs/INDEX.md` is the map. See README at repo root for quickstart + CLI.
 
+## Docs
+`docs/INDEX.md` is the map. `docs/MVP.md` is the 32-phase MVP guide (imported from R2
+`mdev`) — the next target: force one evidence-backed world through to a finished film.
+`docs/MVP.md` commit sequence 01–36 lists the exact build order.
+
+## MVP guide progress (docs/MVP.md)
+- **Commit 01 — WorldSnapshot + stable digest: DONE.** `reconstruction/world.py`
+  aggregates a world's versioned reconstructions + evidence closure into an immutable
+  WorldSnapshot; `digest()` is deterministic (same evidence → same hash, version/assertion
+  change → hash changes). Wired into `Channel.snapshot()` + `monstah snapshot <channel>`.
+  Hierarchy now: Sources → Claims → Assertions → Reconstruction → **WorldSnapshot**.
+- Next: commit 02 (reconstruction versioning/lifecycle), 03 (ReferencePack diversity).
+
 ## Next
-- Wire `PostgresStore`/`DuckStore` into channel `publish` (currently R2).
-- Add `ancient-oceans` + `deep-blue` OBIS offline fixtures for channel tests.
+- Wire `PostgresStore` canonical persistence + `DuckStore` Parquet export into `publish`.
+- Implement MVP commits 02+ per `docs/MVP.md` (versioning, ReferencePacks, produce command).
 - Alien Worlds (NASA TAP adapter) per Phase 3 of `CHANNELS.md`.
-- Vision QA → Retake loop against ShotSpec (LTX_USAGE.md).

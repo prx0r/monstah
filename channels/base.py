@@ -185,6 +185,18 @@ class Channel:
         return self._analytics
 
     # -- evidence step: build the graph -------------------------------
+    def snapshot(self, world_id: str = "world") -> Any:
+        """Aggregate the ingested manifest into an immutable WorldSnapshot."""
+        from monstah.reconstruction.world import snapshot_from_manifest
+
+        refs = {k: e.refs[0] for k, e in self.manifest.entities.items() if e.refs}
+        return snapshot_from_manifest(
+            world_id=world_id,
+            entities=refs,
+            versions=self.manifest.versions,
+            assertions=self.manifest.assertions,
+        )
+
     def ingest(self, limit: int = 50) -> list[Taxon]:
         taxa = self.adapter.load_taxa(limit=limit)
         for t in taxa:

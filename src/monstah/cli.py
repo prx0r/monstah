@@ -163,6 +163,18 @@ def _cmd_simulate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_snapshot(args: argparse.Namespace) -> int:
+    """Build an immutable WorldSnapshot for a channel and print its digest."""
+    from .channels import get_channel
+
+    ch = get_channel(args.channel, offline=True)
+    ch.ingest(limit=args.taxa)
+    snap = ch.snapshot(world_id=args.world)
+    print(f"world: {snap.world_id} v{snap.world_version}")
+    print(f"entities: {len(snap.entities)} | digest: {snap.digest()}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="monstah", description="world model engine")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -186,6 +198,12 @@ def main(argv: list[str] | None = None) -> int:
     sim.add_argument("--runs", type=int, default=1000, dest="runs")
     sim.add_argument("--out", default="out/simulation", help="output directory")
     sim.set_defaults(func=_cmd_simulate)
+
+    snap = sub.add_parser("snapshot", help="build an immutable WorldSnapshot + digest")
+    snap.add_argument("channel", help=f"one of: {', '.join(list_channels())}")
+    snap.add_argument("--taxa", type=int, default=40)
+    snap.add_argument("--world", default="hell-creek")
+    snap.set_defaults(func=_cmd_snapshot)
 
     i = sub.add_parser("ingest", help="ingest taxa from PBDB + Macrostrat")
     i.add_argument("taxa", nargs="*")
