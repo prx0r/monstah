@@ -36,11 +36,11 @@ def _cmd_run(args: argparse.Namespace) -> None:
     from .pipeline import run_candidate, save_to_r2
 
     taxa = [
-        Taxon(ref=Reference(namespace="pbdb", key="1"), name="Tyrannosaurus rex", min_ma=66.0, max_ma=68.0, env={"land"}, diet="carnivore", traits={"mass_kg": 7000, "speed": 10, "bite_force": 40000, "stamina": 12}),
-        Taxon(ref=Reference(namespace="pbdb", key="2"), name="Triceratops", min_ma=66.0, max_ma=68.0, env={"land"}, diet="herbivore", traits={"mass_kg": 6000, "speed": 9, "defence": 0.6}),
-        Taxon(ref=Reference(namespace="pbdb", key="3"), name="Mosasaurus", min_ma=66.0, max_ma=72.0, env={"sea"}, diet="carnivore", traits={"mass_kg": 12000, "speed": 12, "bite_force": 60000}),
-        Taxon(ref=Reference(namespace="pbdb", key="4"), name="Ankylosaurus", min_ma=66.0, max_ma=68.0, env={"land"}, diet="herbivore", traits={"mass_kg": 5000, "defence": 0.85}),
-        Taxon(ref=Reference(namespace="pbdb", key="5"), name="Velociraptor", min_ma=70.0, max_ma=75.0, env={"land"}, diet="carnivore", traits={"mass_kg": 15, "speed": 14, "bite_force": 500}),
+        Taxon(ref=Reference(namespace="pbdb", key="1"), name="Tyrannosaurus rex", min_ma=66.0, max_ma=68.0, env={"land"}, diet="carnivore", traits={"mass_kg": 7000, "speed": 10, "armor_class": 13, "hit_points": 70, "attack_bonus": 11, "damage_dice": "4d12+7"}),
+        Taxon(ref=Reference(namespace="pbdb", key="2"), name="Triceratops", min_ma=66.0, max_ma=68.0, env={"land"}, diet="herbivore", traits={"mass_kg": 6000, "speed": 9, "armor_class": 15, "hit_points": 85, "attack_bonus": 9, "damage_dice": "3d8+6"}),
+        Taxon(ref=Reference(namespace="pbdb", key="3"), name="Mosasaurus", min_ma=66.0, max_ma=72.0, env={"sea"}, diet="carnivore", traits={"mass_kg": 12000, "speed": 12, "armor_class": 14, "hit_points": 100, "attack_bonus": 12, "damage_dice": "4d10+8"}),
+        Taxon(ref=Reference(namespace="pbdb", key="4"), name="Ankylosaurus", min_ma=66.0, max_ma=68.0, env={"land"}, diet="herbivore", traits={"mass_kg": 5000, "speed": 8, "armor_class": 19, "hit_points": 90, "attack_bonus": 8, "damage_dice": "3d10+6"}),
+        Taxon(ref=Reference(namespace="pbdb", key="5"), name="Velociraptor", min_ma=70.0, max_ma=75.0, env={"land"}, diet="carnivore", traits={"mass_kg": 15, "speed": 14, "armor_class": 12, "hit_points": 20, "attack_bonus": 8, "damage_dice": "2d6+4"}),
     ]
     by_ref = {t.ref.key: t for t in taxa}
     cands = ScenarioDiscovery(taxa).generate(args.top_n)
@@ -53,6 +53,27 @@ def _cmd_run(args: argparse.Namespace) -> None:
         if args.r2:
             key = save_to_r2(out)
             print(f"  stored -> r2:{key}")
+
+
+def _cmd_matchup(args: argparse.Namespace) -> int:
+    from .ingest.open5e import Open5eClient
+    from .simulations import Combatant, run_monte_carlo
+
+    c = Open5eClient(cache_dir=args.cache)
+    stats_a = c.monster(args.a)
+    stats_b = c.monster(args.b)
+    if not stats_a or not stats_b:
+        print("could not resolve both monster slugs")
+        return 1
+    a = Combatant.from_open5e(stats_a)
+    b = Combatant.from_open5e(stats_b)
+    mc = run_monte_carlo(a, b, n=args.runs)
+    print(f"{a.name} (AC {a.armor_class}, HP {a.hit_points}, {a.damage_dice})")
+    print(f"  vs")
+    print(f"{b.name} (AC {b.armor_class}, HP {b.hit_points}, {b.damage_dice})")
+    print(f"\n  outcomes (n={mc.runs}): {mc.outcomes}")
+    print(f"  selected runs: {mc.selected}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -68,6 +89,13 @@ def main(argv: list[str] | None = None) -> int:
     i.add_argument("--cache", default="~/.cache/monstah")
     i.set_defaults(func=_cmd_ingest)
 
+    m = sub.add_parser("matchup", help="Monte Carlo duel from two Open5e statblocks")
+    m.add_argument("a", help="monster slug A")
+    m.add_argument("b", help="monster slug B")
+    m.add_argument("--runs", type=int, default=1000, dest="runs")
+    m.add_argument("--cache", default="~/.cache/monstah")
+    m.set_defaults(func=_cmd_matchup)
+
     r = sub.add_parser("run", help="run the full pipeline over discovered scenarios")
     r.add_argument("--top-n", type=int, default=5, dest="top_n")
     r.add_argument("--runs", type=int, default=500, dest="n_runs")
@@ -75,8 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     r.set_defaults(func=_cmd_run)
 
     args = p.parse_args(argv)
-    args.func(args)
-    return 0
+    return args.func(args)
 
 
 if __name__ == "__main__":

@@ -13,8 +13,9 @@ dependencies = [
     "duckdb>=1.0",
     "pyarrow",
     "polars>=0.20",
-    "numpy",
+    "numpy>=1.26",
     "boto3>=1.34",
+    "esper>=3.7",
     "typing-extensions",
 ]
 

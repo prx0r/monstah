@@ -14,7 +14,7 @@ from typing import Any
 
 from .discovery import Candidate, OverlapResult, Taxon, check_historical_overlap
 from .narrative import EpisodeSpec, detect_significance, compile_story
-from .simulations import Participant, run_monte_carlo
+from .simulations import Combatant, Participant, run_monte_carlo
 from .media.shots import compile_shots
 from .media.storage import R2Store
 
@@ -71,6 +71,28 @@ def _participant(t: Taxon) -> Participant:
     )
 
 
+def _combatant(t: Taxon) -> Combatant:
+    """Adapt a Taxon into a d20 Combatant using Open5e-style stats.
+
+    Uses SRD/OGL-style statblocks: attack bonus + damage dice vs armor class.
+    Taxon traits provide mass/speed; missing combat stats fall back to defaults.
+    """
+    return Combatant(
+        {
+            "name": t.name,
+            "ref": t.ref,
+            "armor_class": int(t.traits.get("armor_class", 12)),
+            "hit_points": int(t.traits.get("hit_points", max(20, t.traits.get("mass_kg", 2000) // 100))),
+            "attack_bonus": int(t.traits.get("attack_bonus", 5)),
+            "damage_dice": t.traits.get("damage_dice", "2d6+3"),
+            "speed": float(t.traits.get("speed", 8.0)),
+            "stamina": float(t.traits.get("stamina", 10.0)),
+            "perception": float(t.traits.get("perception", 60.0)),
+            "diet": t.diet,
+        }
+    )
+
+
 def run_candidate(
     candidate: Candidate,
     taxa_by_ref: dict[str, Taxon],
@@ -92,37 +114,36 @@ def run_candidate(
         spatial_shared=True,
     )
 
-    # decide actor roles by diet
-    pred, prey = (a, b) if a.diet == "carnivore" else (b, a)
+    # decide attacker/defender by diet
+    attacker, defender = (a, b) if a.diet == "carnivore" else (b, a)
     mc = run_monte_carlo(
-        _participant(pred),
-        _participant(prey),
+        _combatant(attacker),
+        _combatant(defender),
         n=n_runs,
-        scenario_id=candidate.template,
     )
     significance = detect_significance(
         scenario_id=candidate.template,
         outcome_dist=mc.outcomes,
         uncertainty=a.traits.get("uncertainty", 0.0),
         rare_relationship=candidate.template in ("predation", "competition"),
-        counterintuitive=mc.dominant_outcome == "prey_escape",
+        counterintuitive=mc.dominant_outcome == "defender_survives",
     )
     story = compile_story(
-        title=title or f"{pred.name} vs {prey.name}: {candidate.template}",
+        title=title or f"{attacker.name} vs {defender.name}: {candidate.template}",
         scenario_id=candidate.template,
-        question=f"Could {pred.name} successfully hunt {prey.name}?",
+        question=f"Could {attacker.name} successfully hunt {defender.name}?",
         evidence_summary=overlap.summary(),
-        reconstruction_summary=f"Body models from reconstruction parameters (mass {a.traits.get('mass_kg')} kg).",
+        reconstruction_summary=f"d20 combat model from statblock-derived capabilities (AC {attacker.traits.get('armor_class')}).",
         outcome_dist=mc.outcomes,
-        crux="The dominant variable governing outcome is the assumed speed/stamina balance.",
+        crux="The dominant variable governing outcome is the attack-vs-AC balance.",
         uncertainty_note="Results are conditional on reconstruction assumptions; see provenance.",
     )
     # a simple event log for shots
-    event_log = [{"t": 0, "actor": pred.name, "action": "CHASE"}, {"t": 3, "actor": prey.name, "action": "RETREAT"}]
+    event_log = [{"t": 0, "actor": attacker.name, "action": "CHASE"}, {"t": 3, "actor": defender.name, "action": "DEFEND"}]
     shots = compile_shots(
         entity_versions=[
-            {"entity": pred.name, "version": "R1", "asset_uri": ""},
-            {"entity": prey.name, "version": "R1", "asset_uri": ""},
+            {"entity": attacker.name, "version": "R1", "asset_uri": ""},
+            {"entity": defender.name, "version": "R1", "asset_uri": ""},
         ],
         environment="PALEO",
         event_log=event_log,
