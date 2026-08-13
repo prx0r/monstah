@@ -318,6 +318,8 @@ class ImageResolver:
             self.providers = providers
 
     def search(self, entity: str, *, role: AssetRole | None = None) -> list[AssetCandidate]:
+        import logging
+
         cands: list[AssetCandidate] = []
         for p in self.providers:
             try:
@@ -328,7 +330,8 @@ class ImageResolver:
                         c.role = role
                     c.compute_score()
                     cands.append(c)
-            except Exception:
+            except Exception as e:
+                logging.getLogger("monstah.media").warning("provider %s failed for %r: %s", p.name, entity, e)
                 continue
         cands.sort(key=lambda c: c.score, reverse=True)
         return cands

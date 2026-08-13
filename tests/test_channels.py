@@ -62,6 +62,27 @@ def test_non_combat_channel_path():
     assert out.bundle.shots[0].canonicality.value in ("RECONSTRUCTION", "GRAPH_DERIVED")
 
 
+def test_evidence_chain_is_persisted_to_durable_store(tmp_path):
+    import tempfile
+    from monstah.data.duck import DuckStore
+
+    ch = get_channel("prehistoric", n_runs=50, offline=True)
+    # point at a throwaway durable store
+    store = DuckStore(tmp_path / "test.duckdb")
+    ch._analytics = store
+    taxa = ch.ingest(limit=8)
+    by = {t.ref.key: t for t in taxa}
+    cands = ch.discover(taxa, top_n=1)
+    ch.run(cands[0], by)
+    # assertions/claims/reconstructions were persisted, not just held in memory
+    assert store.count("assertions") >= 8
+    assert store.count("claims") >= 8
+    assert store.count("reconstructions") >= 8
+    assert store.count("sim_results") >= 1
+    assert store.count("events") >= 1
+    store.close()
+
+
 def test_deepblue_is_obis_driven():
     from monstah.channels.deepblue import DeepBlueAdapter
 

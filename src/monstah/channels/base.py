@@ -203,6 +203,8 @@ class Channel:
             rec = build_reconstruction(t.ref, t.facts, src, version="R1", assertions=pack.assertions)
             self.manifest.reconstructions[t.ref.key] = rec
             self.manifest.versions[t.ref.key] = rec.version
+            # persist the evidence chain to the durable analytical store
+            self._get_analytics().write_evidence_pack(t.ref.key, src, pack.claims, pack.assertions, rec)
             self.manifest.entities.setdefault(
                 t.ref.key,
                 Entity(
@@ -229,12 +231,15 @@ class Channel:
         return out
 
     def _record(self, output: PipelineOutput) -> None:
-        """Persist simulation results into the DuckDB analytical store."""
+        """Persist simulation results + canonical events into the durable store."""
         store = self._get_analytics()
         for template, prob in output.mc.outcomes.items():
             store.register_sim_results(
                 [{"scenario": output.candidate.template, "outcome": template, "probability": prob}]
             )
+        rep_idx = output.mc.selected.get("representative", 0) if output.mc else 0
+        if getattr(output, "event_log", None):
+            store.write_events(output.candidate.template, rep_idx, output.event_log)
 
     # -- truth step: strict validity by mode ----------------------------
     def validate(self, candidate: Candidate, taxa_by_ref: dict[str, Taxon]) -> OverlapResult:
@@ -300,12 +305,14 @@ class Channel:
         from ..media.shots import EntityVersion, ShotSpec
 
         env = self.adapter.environment_for_candidate(candidate, taxa_by_ref)
+        v_a = self.manifest.versions.get(a.ref.key, "R1")
+        v_b = self.manifest.versions.get(b.ref.key, "R1")
         shots = [
             ShotSpec(
                 index=0,
                 entities=[
-                    EntityVersion(entity=a.name, version="R1", asset_uri=""),
-                    EntityVersion(entity=b.name, version="R1", asset_uri=""),
+                    EntityVersion(entity=a.name, version=v_a, asset_uri=""),
+                    EntityVersion(entity=b.name, version=v_b, asset_uri=""),
                 ],
                 environment=env.id if env else "",
                 event="",
@@ -399,7 +406,7 @@ class Channel:
         return self._is_extinct_world()
 
     def publish(self, output: PipelineOutput, store=None) -> str:
-        """Persist the render bundle + story to R2 as canonical output."""
+        """Persist the render bundle + story to R2 AND the durable store."""
         import json
 
         from ..media.storage import R2Store
@@ -411,7 +418,12 @@ class Channel:
             "shots": output.bundle.to_dict() if hasattr(output.bundle, "to_dict") else output.bundle,
         }
         key = f"{'_'.join(e.key for e in output.candidate.entities)}/{output.candidate.template}.json"
-        return store.put_bytes(key, json.dumps(payload, indent=2).encode(), content_type="application/json")
+        r2_key = store.put_bytes(key, json.dumps(payload, indent=2).encode(), content_type="application/json")
+        # durable analytical record
+        self._get_analytics().write_episode(
+            self.theme, output.candidate.template, output.story.title, payload
+        )
+        return r2_key
 
     @property
     def theme(self) -> str:

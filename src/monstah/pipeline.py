@@ -28,6 +28,7 @@ class PipelineOutput:
     story: EpisodeSpec
     shots: list
     bundle: dict = field(default_factory=dict)
+    event_log: list = field(default_factory=list)
 
     def save(self, path: str) -> str:
         import os
@@ -125,7 +126,8 @@ def run_candidate(
         environment=env_key,
         event_log=event_log,
     )
-    return PipelineOutput(candidate=candidate, overlap=overlap, mc=mc, significance=significance, story=story, shots=shots)
+    return PipelineOutput(candidate=candidate, overlap=overlap, mc=mc, significance=significance,
+                          story=story, shots=shots, event_log=event_log)
 
 
 def _run_events(attacker, defender, mc, run_index: int, scenario_id: str = "scenario") -> list[dict]:

@@ -101,12 +101,16 @@ class ShotSpec(BaseModel):
 
 
 class RendererManifest(BaseModel):
-    """Describes which renderer + backend produced the shots (replaceable)."""
+    """Describes which renderer + backend produced the shots (replaceable).
 
-    renderer_family: str = "ltx"
-    renderer_version: str = "2.3"
-    backend: str = "comfyui"
-    model_variant: str = "ltx-2-3-fast"
+    Version/model come from a config `RendererProfile` — the domain layer never
+    hardcodes a renderer version here.
+    """
+
+    renderer_family: str
+    renderer_version: str
+    backend: str
+    model_variant: str
     checkpoint_digest: str = ""
     workflow_id: str = ""
     workflow_version: str = ""
